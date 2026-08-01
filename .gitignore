@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build outputs
+dist/
+build/
+*.tsbuildinfo
+.vercel/
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# drizzle
+drizzle/meta/
+
+# logs
+*.log
+npm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

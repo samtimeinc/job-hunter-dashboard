@@ -1,0 +1,155 @@
+/**
+ * Target companies and how to fetch their jobs.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │ HOW TO ADD A COMPANY                                                 │
+ * ├──────────────────────────────────────────────────────────────────────┤
+ * │ 1. Find the company's ATS form by opening its careers page:          │
+ * │     • "boards.greenhouse.io/<slug>"     → greenhouse                  │
+ * │     • "jobs.lever.co/<slug>"            → lever                       │
+ * │     • "jobs.ashbyhq.com/<slug>"         → ashby                       │
+ * │     • "<co>.wd1.myworkdayjobs.com/..."  → workday (auth-walled)      │
+ * │     • custom-built portal (no JSON)     → playwright adapter (see 2) │
+ * │                                                                       │
+ * │ 2. Append an entry to TARGET_COMPANIES below using one of the        │
+ * │    TEMPLATE_* blocks at the bottom of this file.                     │
+ * │                                                                       │
+ * │ 3. If using a new playwright adapter:                                 │
+ * │     a. add `'yourcompany'` to `PlaywrightAdapter` below                │
+ * │     b. implement `yourcompany` in server/src/scrapers/playwright/    │
+ * │     c. register it in server/src/scrapers/playwright/index.ts        │
+ * │                                                                       │
+ * │ 4. That's it — `npm run scan` picks up the new entry on next run.   │
+ * │    No build step, no migration, no restart needed in dev.            │
+ * └──────────────────────────────────────────────────────────────────────┘
+ *
+ * Companies without a `career` entry get the ★ Watchlist badge in the UI
+ * when an aggregator (Adzuna / JSearch / Remotive) returns a matching role
+ * by name — see `isTargetCompany()` at the bottom.
+ */
+
+export interface TargetCompany {
+  name: string;
+  /** Substrings matched case-insensitively against scraped company names.
+   *  Include plausible variants: 'notion labs' + 'notion', 'aws' + 'amazon'. */
+  matchNames: string[];
+  career?:
+    | { type: 'greenhouse'; slug: string }
+    | { type: 'lever'; slug: string }
+    | { type: 'ashby'; slug: string }
+    | { type: 'workday'; host: string; tenant: string; site: string }
+    /** In-house portal scraped via a headless browser. */
+    | { type: 'playwright'; adapter: PlaywrightAdapter };
+}
+
+/**
+ * Every in-house career portal that has a Playwright adapter implemented.
+ * Add new adapter slugs here when you build a working DOM extractor in
+ * server/src/scrapers/playwright/<name>.ts.
+ */
+export type PlaywrightAdapter =
+  // ✅ Verified working (live DOM confirmed 2026-07-28)
+  | 'amazon'
+  // 🚧 Implemented but DOM selector unverified — adapters return [] gracefully.
+  // To enable: verify the adapter against the live site, then move the slug
+  // above and add a `career` entry to TARGET_COMPANIES using it.
+  | 'starbucks'
+  | 'microsoft'
+  | 'google';
+
+export const TARGET_COMPANIES: TargetCompany[] = [
+  // ═══════════════════════════════════════════════════════════════════════
+  // AI Research & Foundations
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'OpenAI',    matchNames: ['openai', 'open ai'],    career: { type: 'ashby',     slug: 'openai'    } },
+  { name: 'Anthropic', matchNames: ['anthropic'],            career: { type: 'greenhouse', slug: 'anthropic' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Developer tools / infra
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Vercel', matchNames: ['vercel'],                career: { type: 'ashby',     slug: 'vercel'  } },
+  { name: 'Linear', matchNames: ['linear'],                career: { type: 'ashby',     slug: 'linear'  } },
+  { name: 'Notion', matchNames: ['notion labs', 'notion'], career: { type: 'ashby',     slug: 'notion'  } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Productivity / collaboration
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Airtable',   matchNames: ['airtable'],     career: { type: 'greenhouse', slug: 'airtable'   } },
+  { name: 'Figma',      matchNames: ['figma'],        career: { type: 'greenhouse', slug: 'figma'      } },
+  { name: 'Discord',    matchNames: ['discord'],      career: { type: 'greenhouse', slug: 'discord'    } },
+  { name: 'Smartsheet', matchNames: ['smartsheet'],   career: { type: 'greenhouse', slug: 'smartsheet' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Payments / fintech
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Stripe',    matchNames: ['stripe'],     career: { type: 'greenhouse', slug: 'stripe'    } },
+  { name: 'Robinhood', matchNames: ['robinhood'],  career: { type: 'greenhouse', slug: 'robinhood' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Observability / data
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Datadog', matchNames: ['datadog'], career: { type: 'greenhouse', slug: 'datadog' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Reading / content
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Scribd', matchNames: ['scribd'], career: { type: 'ashby', slug: 'ScribdInc' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // In-house career portals (scraped via Playwright, no JSON API)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Only entries whose adapter has been verified live belong here. To add a
+  // new adapter: implement it in server/src/scrapers/playwright/<name>.ts
+  // and prove it returns real jobs via a debug script before flipping it on.
+  { name: 'Amazon', matchNames: ['amazon', 'aws', 'amazon web services'], career: { type: 'playwright', adapter: 'amazon' } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Badge-only (matched against Adzuna / JSearch / Remotive results by name)
+  // ═══════════════════════════════════════════════════════════════════════
+  // No `career` entry → these companies aren't scraped directly, but any job
+  // surfaced by an aggregator whose company-name contains a matchName gets
+  // the ★ Watchlist badge + the "Target companies" filter toggle.
+  //
+  // For these three we attempted Playwright adapters (see playwright/
+  // microsoft.ts, starbucks.ts, google.ts) but the live DOM selectors
+  // couldn't be verified — they returned 0 with a console warning rather than
+  // crashing. If you reverse-engineer any of them in the future, add a
+  // `career` entry pointing at the right PlaywrightAdapter slug.
+  { name: 'Microsoft', matchNames: ['microsoft', 'msft', 'azure'] },
+  { name: 'Starbucks', matchNames: ['starbucks', 'sbux'] },
+  { name: 'Google', matchNames: ['google', 'alphabet', 'google llc', 'youtube'] },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DEPRIORITISED — documented so we don't rediscover these issues
+  // ═══════════════════════════════════════════════════════════════════════
+  // PLAID   — custom careers portal at plaid.com/careers/openings/*; no JSON.
+  // SLACK   — fully absorbed into Salesforce; careers live behind auth-walled
+  //           salesforce.wd1.myworkdayjobs.com.
+  // REDFIN  — acquired by Rocket Companies 2023; careers redirect to
+  //           careers.rocket.com (Taleo, no JSON API).
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // TEMPLATE BLOCKS — uncomment & edit to add a new company
+  // ═══════════════════════════════════════════════════════════════════════
+  // TEMPLATE_GREENHOUSE  (most common among mid-sized tech)
+  // { name: 'Example', matchNames: ['example'], career: { type: 'greenhouse', slug: 'example' } },
+  //
+  // TEMPLATE_ASHBY  (AI startups, modern tooling companies)
+  // { name: 'Example', matchNames: ['example'], career: { type: 'ashby', slug: 'example' } },
+  //
+  // TEMPLATE_LEVER  (legacy startups that didn't migrate)
+  // { name: 'Example', matchNames: ['example'], career: { type: 'lever', slug: 'example' } },
+  //
+  // TEMPLATE_PLAYWRIGHT  (new in-house portal — see "HOW TO ADD A COMPANY" at the top)
+  // { name: 'Example', matchNames: ['example'], career: { type: 'playwright', adapter: 'examplename' } },
+  //
+  // TEMPLATE_BADGE_ONLY  (no direct scrape, matches against aggregators by name)
+  // { name: 'Example', matchNames: ['example'] },
+];
+
+export function isTargetCompany(name: string): boolean {
+  const lower = name.toLowerCase();
+  return TARGET_COMPANIES.some((c) =>
+    c.matchNames.some((m) => lower.includes(m.toLowerCase())),
+  );
+}

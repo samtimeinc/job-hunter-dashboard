@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/dist",
+  "functions": {
+    "api/index.ts": {
+      "memory": 512,
+      "maxDuration": 30
+    },
+    "api/cron.ts": {
+      "memory": 1024,
+      "maxDuration": 120
+    }
+  },
+  "rewrites": [
+    { "source": "/api/cron", "destination": "/api/cron.ts" },
+    { "source": "/api/(.*)", "destination": "/api/index.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 15,3 * * *"
+    }
+  ]
+}
