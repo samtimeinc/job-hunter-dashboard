@@ -175,7 +175,7 @@ export function JobTable({
                     className={`cursor-pointer rounded-md px-2 py-1 text-xs font-medium opacity-0 ring-1 transition-opacity group-hover:opacity-100 focus:opacity-100 ${
                       visibility === 'hidden'
                         ? 'text-emerald-700 ring-emerald-200 hover:bg-emerald-50'
-                        : 'text-slate-500 ring-slate-200 hover:bg-slate-100 hover:text-slate-700'
+                        : 'text-slate-500 ring-slate-200 hover:bg-red-600 hover:text-slate-50'
                     }`}
                   >
                     {visibility === 'hidden' ? 'Unhide' : 'Hide'}
