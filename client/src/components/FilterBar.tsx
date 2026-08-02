@@ -137,24 +137,24 @@ function CompanyScopeToggle({
   value: CompanyScope;
   onChange: (next: CompanyScope) => void;
 }) {
+  const currentIndex = Math.max(
+    0,
+    COMPANY_SCOPE_OPTIONS.findIndex((opt) => opt.value === value),
+  );
+  const current = COMPANY_SCOPE_OPTIONS[currentIndex];
+  const next = COMPANY_SCOPE_OPTIONS[(currentIndex + 1) % COMPANY_SCOPE_OPTIONS.length];
+
   return (
-    <div className="flex overflow-hidden rounded-lg ring-1 ring-slate-300">
-      {COMPANY_SCOPE_OPTIONS.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`cursor-pointer border-l border-slate-300 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors first:border-l-0 ${
-              active ? opt.activeClass : 'bg-white text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
+    <button
+      type="button"
+      title={`Click to show: ${next.label}`}
+      onClick={() => onChange(next.value)}
+      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap ring-1 transition-colors ${
+        current.activeClass
+      } ring-inherit/30 hover:brightness-110`}
+    >
+      {current.label}
+    </button>
   );
 }
 
