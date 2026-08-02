@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { JobFilters, JobSource, WorkMode } from '@jobhunt/shared';
+import type { CompanyScope, JobFilters, JobSource, WorkMode } from '@jobhunt/shared';
 import { acknowledgeAll, listJobs } from '../db/queries/jobs.js';
 import { upsertTracker } from '../db/queries/trackers.js';
 import { getStats } from '../db/queries/stats.js';
@@ -16,7 +16,7 @@ jobsRouter.get(
       sources: parseArray(req.query.sources) as JobSource[] | undefined,
       workModes: parseArray(req.query.workModes) as WorkMode[] | undefined,
       postedWithinDays: parseNumber(req.query.postedWithinDays),
-      targetCompaniesOnly: req.query.targetCompaniesOnly === 'true',
+      companyScope: parseCompanyScope(req.query.companyScope),
       page: parseNumber(req.query.page),
       pageSize: parseNumber(req.query.pageSize),
     };
@@ -63,5 +63,10 @@ function parseArray(value: unknown): string[] | undefined {
 
 function parseNumber(value: unknown): number | undefined {
   if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function parseCompanyScope(value: unknown): CompanyScope | undefined {
+  if (value === 'all' || value === 'target' || value === 'other') return value;
   return undefined;
 }

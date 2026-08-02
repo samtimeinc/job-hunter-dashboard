@@ -27,8 +27,10 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
   if (filters.workModes?.length) {
     conditions.push(inArray(schema.jobs.workMode, filters.workModes as WorkMode[]));
   }
-  if (filters.targetCompaniesOnly) {
+  if (filters.companyScope === 'target') {
     conditions.push(eq(schema.jobs.isTargetCompany, true));
+  } else if (filters.companyScope === 'other') {
+    conditions.push(eq(schema.jobs.isTargetCompany, false));
   }
   if (filters.postedWithinDays) {
     const cutoff = new Date();

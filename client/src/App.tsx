@@ -13,7 +13,7 @@ export default function App() {
     search: '',
     sources: [],
     workModes: [],
-    targetCompaniesOnly: false,
+    companyScope: 'all',
     postedWithinDays: undefined,
   });
   const [page, setPage] = useState(1);
@@ -36,7 +36,7 @@ export default function App() {
     sources: filters.sources.length ? filters.sources : undefined,
     workModes: filters.workModes.length ? filters.workModes : undefined,
     postedWithinDays: filters.postedWithinDays,
-    targetCompaniesOnly: filters.targetCompaniesOnly || undefined,
+    companyScope: filters.companyScope === 'all' ? undefined : filters.companyScope,
     page,
     pageSize: PAGE_SIZE,
   });

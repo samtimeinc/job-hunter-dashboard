@@ -30,7 +30,7 @@ function toQuery(filters: JobFilters): string {
   if (filters.sources?.length) params.set('sources', filters.sources.join(','));
   if (filters.workModes?.length) params.set('workModes', filters.workModes.join(','));
   if (filters.postedWithinDays) params.set('postedWithinDays', String(filters.postedWithinDays));
-  if (filters.targetCompaniesOnly) params.set('targetCompaniesOnly', 'true');
+  if (filters.companyScope) params.set('companyScope', filters.companyScope);
   if (filters.page) params.set('page', String(filters.page));
   if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
   const qs = params.toString();

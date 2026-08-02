@@ -1,10 +1,12 @@
 import type { JobSource, WorkMode } from '@jobhunt/shared';
 
+export type CompanyScope = 'all' | 'target' | 'other';
+
 export interface FilterState {
   search: string;
   sources: JobSource[];
   workModes: WorkMode[];
-  targetCompaniesOnly: boolean;
+  companyScope: CompanyScope;
   postedWithinDays?: number;
 }
 
@@ -114,15 +116,44 @@ export function FilterBar({ value, onChange }: Props) {
         </div>
       </details>
 
-      <label className="btn-secondary cursor-pointer">
-        <input
-          type="checkbox"
-          checked={value.targetCompaniesOnly}
-          onChange={(e) => onChange({ ...value, targetCompaniesOnly: e.target.checked })}
-          className="accent-slate-900"
-        />
-        Target companies
-      </label>
+      <CompanyScopeToggle
+        value={value.companyScope}
+        onChange={(companyScope) => onChange({ ...value, companyScope })}
+      />
+    </div>
+  );
+}
+
+const COMPANY_SCOPE_OPTIONS: { value: CompanyScope; label: string; activeClass: string }[] = [
+  { value: 'all', label: 'All companies', activeClass: 'bg-slate-900 text-white' },
+  { value: 'target', label: 'Target companies', activeClass: 'bg-emerald-600 text-white' },
+  { value: 'other', label: 'Other companies', activeClass: 'bg-amber-500 text-white' },
+];
+
+function CompanyScopeToggle({
+  value,
+  onChange,
+}: {
+  value: CompanyScope;
+  onChange: (next: CompanyScope) => void;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-lg ring-1 ring-slate-300">
+      {COMPANY_SCOPE_OPTIONS.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={`cursor-pointer border-l border-slate-300 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors first:border-l-0 ${
+              active ? opt.activeClass : 'bg-white text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

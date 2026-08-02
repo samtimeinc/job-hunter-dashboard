@@ -64,12 +64,14 @@ export interface JobListResponse {
   pageSize: number;
 }
 
+export type CompanyScope = 'all' | 'target' | 'other';
+
 export interface JobFilters {
   search?: string;
   sources?: JobSource[];
   statuses?: ApplicationStatus[];
   workModes?: WorkMode[];
-  targetCompaniesOnly?: boolean;
+  companyScope?: CompanyScope;
   postedWithinDays?: number;
   /** 1-based page index. */
   page?: number;
