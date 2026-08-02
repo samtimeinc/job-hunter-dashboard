@@ -12,6 +12,13 @@ const MAX_LIMIT = 200;
 export async function listJobs(filters: JobFilters = {}): Promise<JobListResponse> {
   const conditions = [eq(schema.jobs.active, true)];
 
+  // Visibility filter: default 'active' excludes hidden jobs; 'hidden' shows only them.
+  if (filters.visibility === 'hidden') {
+    conditions.push(sql`${schema.jobs.hiddenAt} IS NOT NULL`);
+  } else {
+    conditions.push(sql`${schema.jobs.hiddenAt} IS NULL`);
+  }
+
   if (filters.search) {
     const like = `%${filters.search}%`;
     conditions.push(
@@ -74,7 +81,13 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.jobs)
-      .where(and(eq(schema.jobs.active, true), isNull(schema.jobs.acknowledgedAt))),
+      .where(
+        and(
+          eq(schema.jobs.active, true),
+          isNull(schema.jobs.acknowledgedAt),
+          sql`${schema.jobs.hiddenAt} IS NULL`,
+        ),
+      ),
   ]);
 
   const jobs = rows.map((r) => serializeJob(r.job, r.tracker ?? null));
@@ -100,6 +113,25 @@ export async function acknowledgeAll(): Promise<{ acknowledgedAt: string }> {
     .set({ acknowledgedAt: now })
     .where(isNull(schema.jobs.acknowledgedAt));
   return { acknowledgedAt: now.toISOString() };
+}
+
+/** Hide a job — sets hiddenAt, removing it from default views. */
+export async function hideJob(jobId: string): Promise<{ hiddenAt: string | null }> {
+  const now = new Date();
+  await db
+    .update(schema.jobs)
+    .set({ hiddenAt: now })
+    .where(eq(schema.jobs.id, jobId));
+  return { hiddenAt: now.toISOString() };
+}
+
+/** Restore a hidden job — clears hiddenAt. */
+export async function unhideJob(jobId: string): Promise<{ hiddenAt: string | null }> {
+  await db
+    .update(schema.jobs)
+    .set({ hiddenAt: null })
+    .where(eq(schema.jobs.id, jobId));
+  return { hiddenAt: null };
 }
 
 /**************************** INSERT PATH (used by scanners) ****************************/
@@ -202,6 +234,7 @@ function serializeJob(
     tags: row.tags ?? [],
     isTargetCompany: row.isTargetCompany,
     acknowledgedAt: row.acknowledgedAt ? row.acknowledgedAt.toISOString() : null,
+    hiddenAt: row.hiddenAt ? row.hiddenAt.toISOString() : null,
     tracker: tracker
       ? {
           id: tracker.id,

@@ -31,6 +31,7 @@ function toQuery(filters: JobFilters): string {
   if (filters.workModes?.length) params.set('workModes', filters.workModes.join(','));
   if (filters.postedWithinDays) params.set('postedWithinDays', String(filters.postedWithinDays));
   if (filters.companyScope) params.set('companyScope', filters.companyScope);
+  if (filters.visibility) params.set('visibility', filters.visibility);
   if (filters.page) params.set('page', String(filters.page));
   if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
   const qs = params.toString();
@@ -48,6 +49,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  hideJob: (jobId: string) =>
+    request<void>(`/api/jobs/${jobId}/hide`, { method: 'POST' }),
+  unhideJob: (jobId: string) =>
+    request<void>(`/api/jobs/${jobId}/hide`, { method: 'DELETE' }),
   getSettings: () => request<DashboardSettings>('/api/settings'),
   saveSettings: (body: DashboardSettings) =>
     request<DashboardSettings>('/api/settings', {

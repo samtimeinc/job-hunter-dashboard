@@ -2,22 +2,25 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import type { ApplicationStatus, StatsResponse } from '@jobhunt/shared';
 import { db, schema } from '../client.js';
 
-/** Aggregate counts powering the dashboard header. */
+/** Aggregate counts powering the dashboard header.
+ *  Hidden jobs are excluded from every count — they're effectively off-dashboard. */
 export async function getStats(): Promise<StatsResponse> {
+  const visible = and(eq(schema.jobs.active, true), isNull(schema.jobs.hiddenAt));
+
   const [totalRow] = await db
     .select({ total: count() })
     .from(schema.jobs)
-    .where(eq(schema.jobs.active, true));
+    .where(visible);
 
   const [newRow] = await db
     .select({ count: count() })
     .from(schema.jobs)
-    .where(and(eq(schema.jobs.active, true), isNull(schema.jobs.acknowledgedAt)));
+    .where(and(visible, isNull(schema.jobs.acknowledgedAt)));
 
   const [targetRow] = await db
     .select({ count: count() })
     .from(schema.jobs)
-    .where(and(eq(schema.jobs.active, true), eq(schema.jobs.isTargetCompany, true)));
+    .where(and(visible, eq(schema.jobs.isTargetCompany, true)));
 
   const statusRows = await db
     .select({
@@ -26,7 +29,7 @@ export async function getStats(): Promise<StatsResponse> {
     })
     .from(schema.applicationTrackers)
     .innerJoin(schema.jobs, eq(schema.jobs.id, schema.applicationTrackers.jobId))
-    .where(eq(schema.jobs.active, true))
+    .where(visible)
     .groupBy(schema.applicationTrackers.status);
 
   const sourceRows = await db
@@ -35,7 +38,7 @@ export async function getStats(): Promise<StatsResponse> {
       count: count(),
     })
     .from(schema.jobs)
-    .where(eq(schema.jobs.active, true))
+    .where(visible)
     .groupBy(schema.jobs.source);
 
   return {

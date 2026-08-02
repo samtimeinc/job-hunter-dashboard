@@ -40,6 +40,8 @@ export interface Job {
   isTargetCompany: boolean;
   /** Null until the user clicks "Mark all seen" — null = "New". */
   acknowledgedAt?: string | null;
+  /** Timestamp when the user hid this job, or null if it's still visible. */
+  hiddenAt?: string | null;
   /** Application tracker row linked to this job, if any. */
   tracker?: ApplicationTracker | null;
 }
@@ -66,12 +68,17 @@ export interface JobListResponse {
 
 export type CompanyScope = 'all' | 'target' | 'other';
 
+/** Which jobs to show based on their hidden flag. */
+export type Visibility = 'active' | 'hidden';
+
 export interface JobFilters {
   search?: string;
   sources?: JobSource[];
   statuses?: ApplicationStatus[];
   workModes?: WorkMode[];
   companyScope?: CompanyScope;
+  /** Controls whether hidden jobs are returned. Defaults to 'active'. */
+  visibility?: Visibility;
   postedWithinDays?: number;
   /** 1-based page index. */
   page?: number;
@@ -99,6 +106,11 @@ export interface ScanResult {
 /** Mark jobs as acknowledged so the "new" badge clears. */
 export interface AcknowledgeResponse {
   acknowledgedAt: string;
+}
+
+/** Empty body for hide/unhide endpoints — status conveyed via the HTTP code. */
+export interface VisibilityUpdateResponse {
+  hiddenAt: string | null;
 }
 
 export interface UpdateTrackerRequest {

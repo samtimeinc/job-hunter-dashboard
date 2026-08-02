@@ -1,4 +1,4 @@
-import type { JobSource, WorkMode } from '@jobhunt/shared';
+import type { JobSource, Visibility, WorkMode } from '@jobhunt/shared';
 
 export type CompanyScope = 'all' | 'target' | 'other';
 
@@ -7,6 +7,7 @@ export interface FilterState {
   sources: JobSource[];
   workModes: WorkMode[];
   companyScope: CompanyScope;
+  visibility: Visibility;
   postedWithinDays?: number;
 }
 
@@ -120,7 +121,46 @@ export function FilterBar({ value, onChange }: Props) {
         value={value.companyScope}
         onChange={(companyScope) => onChange({ ...value, companyScope })}
       />
+
+      <VisibilityToggle
+        value={value.visibility}
+        onChange={(visibility) => onChange({ ...value, visibility })}
+      />
     </div>
+  );
+}
+
+const VISIBILITY_OPTIONS: { value: Visibility; label: string; activeClass: string }[] = [
+  { value: 'active', label: 'Active', activeClass: 'bg-slate-900 text-white' },
+  { value: 'hidden', label: 'Hidden', activeClass: 'bg-rose-600 text-white' },
+];
+
+function VisibilityToggle({
+  value,
+  onChange,
+}: {
+  value: Visibility;
+  onChange: (next: Visibility) => void;
+}) {
+  const currentIndex = Math.max(
+    0,
+    VISIBILITY_OPTIONS.findIndex((opt) => opt.value === value),
+  );
+  const current = VISIBILITY_OPTIONS[currentIndex]!;
+  const next = VISIBILITY_OPTIONS[(currentIndex + 1) % VISIBILITY_OPTIONS.length]!;
+  const nextLabel = next.value === 'hidden' ? 'Show hidden' : 'Show active only';
+
+  return (
+    <button
+      type="button"
+      title={`Click to: ${nextLabel}`}
+      onClick={() => onChange(next.value)}
+      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap ring-1 transition-colors ${
+        current.activeClass
+      } ring-inherit/30 hover:brightness-110`}
+    >
+      {current.label}
+    </button>
   );
 }
 
@@ -141,8 +181,8 @@ function CompanyScopeToggle({
     0,
     COMPANY_SCOPE_OPTIONS.findIndex((opt) => opt.value === value),
   );
-  const current = COMPANY_SCOPE_OPTIONS[currentIndex];
-  const next = COMPANY_SCOPE_OPTIONS[(currentIndex + 1) % COMPANY_SCOPE_OPTIONS.length];
+  const current = COMPANY_SCOPE_OPTIONS[currentIndex]!;
+  const next = COMPANY_SCOPE_OPTIONS[(currentIndex + 1) % COMPANY_SCOPE_OPTIONS.length]!;
 
   return (
     <button

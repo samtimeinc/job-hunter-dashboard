@@ -14,6 +14,7 @@ export default function App() {
     sources: [],
     workModes: [],
     companyScope: 'all',
+    visibility: 'active',
     postedWithinDays: undefined,
   });
   const [page, setPage] = useState(1);
@@ -29,6 +30,9 @@ export default function App() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, ApplicationStatus>>(
     {},
   );
+  /** Job IDs whose view membership changed after a hide/unhide click — removed
+   *  locally so the row disappears immediately while the request is in flight. */
+  const [hiddenOptimisticIds, setHiddenOptimisticIds] = useState<Set<string>>(new Set());
 
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
   const { data, loading, error, refresh: refreshJobs } = useJobs({
@@ -37,30 +41,33 @@ export default function App() {
     workModes: filters.workModes.length ? filters.workModes : undefined,
     postedWithinDays: filters.postedWithinDays,
     companyScope: filters.companyScope === 'all' ? undefined : filters.companyScope,
+    visibility: filters.visibility,
     page,
     pageSize: PAGE_SIZE,
   });
 
   const jobsWithOverrides = useMemo<Job[]>(() => {
-    return (data?.jobs ?? []).map((j) =>
-      statusOverrides[j.id]
-        ? {
-            ...j,
-            tracker: {
-              ...(j.tracker ?? {
-                id: j.id,
-                jobId: j.id,
+    return (data?.jobs ?? [])
+      .map((j) =>
+        statusOverrides[j.id]
+          ? {
+              ...j,
+              tracker: {
+                ...(j.tracker ?? {
+                  id: j.id,
+                  jobId: j.id,
+                  status: statusOverrides[j.id]!,
+                  appliedAt: null,
+                  notes: null,
+                  updatedAt: new Date().toISOString(),
+                }),
                 status: statusOverrides[j.id]!,
-                appliedAt: null,
-                notes: null,
-                updatedAt: new Date().toISOString(),
-              }),
-              status: statusOverrides[j.id]!,
-            },
-          }
-        : j,
-    );
-  }, [data, statusOverrides]);
+              },
+            }
+          : j,
+      )
+      .filter((j) => !hiddenOptimisticIds.has(j.id));
+  }, [data, statusOverrides, hiddenOptimisticIds]);
 
   // Clamp page back into range if data shrinks (e.g. after a prune/scan).
   const totalJobs = data?.total ?? 0;
@@ -156,12 +163,20 @@ export default function App() {
           jobs={jobsWithOverrides}
           loading={loading}
           error={error}
-          total={totalJobs}
+          total={Math.max(0, totalJobs - hiddenOptimisticIds.size)}
           page={safePage}
           pageSize={PAGE_SIZE}
+          visibility={filters.visibility}
           onPageChange={setPage}
           onStatusOptimistic={(jobId, status) =>
             setStatusOverrides((prev) => ({ ...prev, [jobId]: status }))
+          }
+          onHideOptimistic={(jobId) =>
+            setHiddenOptimisticIds((prev) => {
+              const next = new Set(prev);
+              next.add(jobId);
+              return next;
+            })
           }
         />
       </main>

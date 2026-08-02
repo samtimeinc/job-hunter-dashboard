@@ -59,6 +59,8 @@ export const jobs = pgTable(
     isTargetCompany: boolean('is_target_company').notNull().default(false),
     /** Becomes null the first time a user "visits" after the job appeared. */
     acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    /** Set when the user manually hides a job — excluded from default views. */
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
   },
   (t) => ({
     uniqExternal: unique('jobs_external_unique').on(t.source, t.externalId),

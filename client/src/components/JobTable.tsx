@@ -1,4 +1,4 @@
-import type { ApplicationStatus, Job } from '@jobhunt/shared';
+import type { ApplicationStatus, Job, Visibility } from '@jobhunt/shared';
 import { api } from '../api/client.js';
 import { NewBadge } from './NewBadge.js';
 import { Pagination } from './Pagination.js';
@@ -18,10 +18,14 @@ interface Props {
   page: number;
   /** Rows per page. */
   pageSize: number;
+  /** Which visibility scope these rows represent ('active' or 'hidden'). */
+  visibility: Visibility;
   /** Navigate to a new page. */
   onPageChange: (page: number) => void;
   /** Bumps the row's local status immediately for snappy UX. */
   onStatusOptimistic: (jobId: string, status: ApplicationStatus) => void;
+  /** Removes (hidden view) or restores (active view) the row locally on hide. */
+  onHideOptimistic: (jobId: string) => void;
 }
 
 /** Main dashboard table — all the columns from agents.md plus status tracker. */
@@ -32,8 +36,10 @@ export function JobTable({
   total,
   page,
   pageSize,
+  visibility,
   onPageChange,
   onStatusOptimistic,
+  onHideOptimistic,
 }: Props) {
   if (loading && jobs.length === 0) {
     return <div className="rounded-xl bg-white p-8 text-center text-slate-500">Loading…</div>;
@@ -65,6 +71,21 @@ export function JobTable({
     }
   };
 
+  // Hides (active view) or restores (hidden view) a job with optimistic removal.
+  const handleToggleHide = async (job: Job) => {
+    const hiding = !job.hiddenAt; // what the new state should be
+    onHideOptimistic(job.id);
+    try {
+      if (hiding) {
+        await api.hideJob(job.id);
+      } else {
+        await api.unhideJob(job.id);
+      }
+    } catch {
+      // Reconcile on next refresh; the row is already gone locally.
+    }
+  };
+
   // Shared pager config so both controls stay identical.
   const pager = (
     <Pagination page={page} total={total} pageSize={pageSize} onChange={onPageChange} />
@@ -86,6 +107,7 @@ export function JobTable({
               <th className="px-4 py-2 font-medium">Posted</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Apply</th>
+              <th className="px-4 py-2 font-medium text-right">—</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -144,6 +166,20 @@ export function JobTable({
                   >
                     Apply
                   </a>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleHide(job)}
+                    title={job.hiddenAt ? 'Restore to active list' : 'Hide this listing'}
+                    className={`cursor-pointer rounded-md px-2 py-1 text-xs font-medium opacity-0 ring-1 transition-opacity group-hover:opacity-100 focus:opacity-100 ${
+                      visibility === 'hidden'
+                        ? 'text-emerald-700 ring-emerald-200 hover:bg-emerald-50'
+                        : 'text-slate-500 ring-slate-200 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
+                  >
+                    {visibility === 'hidden' ? 'Unhide' : 'Hide'}
+                  </button>
                 </td>
               </tr>
             ))}
