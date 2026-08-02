@@ -55,8 +55,13 @@ export interface ApplicationTracker {
 
 export interface JobListResponse {
   jobs: Job[];
+  /** Total number of jobs matching the current filters (across all pages). */
   total: number;
   newSinceLastVisit: number;
+  /** 1-based index of the page represented by `jobs` (1 if unpaginated). */
+  page: number;
+  /** Page size used for the request (number of jobs requested per page). */
+  pageSize: number;
 }
 
 export interface JobFilters {
@@ -66,6 +71,10 @@ export interface JobFilters {
   workModes?: WorkMode[];
   targetCompaniesOnly?: boolean;
   postedWithinDays?: number;
+  /** 1-based page index. */
+  page?: number;
+  /** Number of jobs per page. */
+  pageSize?: number;
 }
 
 export interface StatsResponse {

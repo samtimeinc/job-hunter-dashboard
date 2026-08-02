@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ApplicationStatus, Job } from '@jobhunt/shared';
 import { api } from './api/client.js';
 import { FilterBar, type FilterState } from './components/FilterBar.js';
@@ -9,13 +9,19 @@ import { useJobs } from './hooks/useJobs.js';
 import { useStats } from './hooks/useStats.js';
 
 export default function App() {
-  const [filters, setFilters] = useState<FilterState>({
+  const [filters, setFiltersRaw] = useState<FilterState>({
     search: '',
     sources: [],
     workModes: [],
     targetCompaniesOnly: false,
     postedWithinDays: undefined,
   });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+  const setFilters = useCallback((next: FilterState) => {
+    setFiltersRaw(next);
+    setPage(1); // any filter change resets to the first page
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
@@ -31,6 +37,8 @@ export default function App() {
     workModes: filters.workModes.length ? filters.workModes : undefined,
     postedWithinDays: filters.postedWithinDays,
     targetCompaniesOnly: filters.targetCompaniesOnly || undefined,
+    page,
+    pageSize: PAGE_SIZE,
   });
 
   const jobsWithOverrides = useMemo<Job[]>(() => {
@@ -53,6 +61,14 @@ export default function App() {
         : j,
     );
   }, [data, statusOverrides]);
+
+  // Clamp page back into range if data shrinks (e.g. after a prune/scan).
+  const totalJobs = data?.total ?? 0;
+  const maxPage = Math.max(1, Math.ceil(totalJobs / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+  useEffect(() => {
+    if (safePage !== page) setPage(safePage);
+  }, [safePage, page]);
 
   const acknowledgeNew = useCallback(async () => {
     try {
@@ -140,6 +156,10 @@ export default function App() {
           jobs={jobsWithOverrides}
           loading={loading}
           error={error}
+          total={totalJobs}
+          page={safePage}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
           onStatusOptimistic={(jobId, status) =>
             setStatusOverrides((prev) => ({ ...prev, [jobId]: status }))
           }

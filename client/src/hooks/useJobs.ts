@@ -9,7 +9,7 @@ interface UseJobsState {
   refresh: () => Promise<void>;
 }
 
-/** Fetches the job list whenever filters change. */
+/** Fetches the job list whenever filters (incl. page) change. */
 export function useJobs(filters: JobFilters): UseJobsState {
   const [data, setData] = useState<JobListResponse | null>(null);
   const [loading, setLoading] = useState(true);

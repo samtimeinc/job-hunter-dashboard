@@ -17,6 +17,8 @@ jobsRouter.get(
       workModes: parseArray(req.query.workModes) as WorkMode[] | undefined,
       postedWithinDays: parseNumber(req.query.postedWithinDays),
       targetCompaniesOnly: req.query.targetCompaniesOnly === 'true',
+      page: parseNumber(req.query.page),
+      pageSize: parseNumber(req.query.pageSize),
     };
     const result = await listJobs(filters);
     res.json(result);

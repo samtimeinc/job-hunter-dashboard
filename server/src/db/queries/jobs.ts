@@ -1,15 +1,15 @@
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { Job, JobFilters, JobListResponse, JobSource, WorkMode } from '@jobhunt/shared';
 import { db, schema } from '../client.js';
-import { getDashboardSettings } from './settings.js';
 import { newId } from './helpers.js';
 
 const DEFAULT_LIMIT = 100;
+/** Guard against absurd values coming from the client. */
+const MAX_LIMIT = 200;
 
 /** One-shot fetch for the dashboard: filtered jobs joined with trackers,
  *  plus count of new-since-last-visit for the badge. */
 export async function listJobs(filters: JobFilters = {}): Promise<JobListResponse> {
-  const settings = await getDashboardSettings();
   const conditions = [eq(schema.jobs.active, true)];
 
   if (filters.search) {
@@ -37,37 +37,57 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
     conditions.push(or(isNull(schema.jobs.postedAt), gte(schema.jobs.postedAt, cutoff))!);
   }
 
-  const rows = await db
-    .select({
-      job: schema.jobs,
-      tracker: schema.applicationTrackers,
-    })
-    .from(schema.jobs)
-    .leftJoin(
-      schema.applicationTrackers,
-      eq(schema.applicationTrackers.jobId, schema.jobs.id),
-    )
-    .where(and(...conditions))
-    .orderBy(
-      // Unacknowledged jobs first (the "new" badge), then newest postings
-      asc(schema.jobs.acknowledgedAt),
-      desc(schema.jobs.postedAt),
-      desc(schema.jobs.firstSeenAt),
-    )
-    .limit(DEFAULT_LIMIT);
+  const where = and(...conditions);
+
+  // Run the page query and the total-count query in parallel — both apply the
+  // same filters, so the count reflects what would be returned across all pages.
+  const requestedLimit = clamp(filters.pageSize ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
+  const page = Math.max(1, filters.page ?? 1);
+  const offset = (page - 1) * requestedLimit;
+
+  const [rows, [totalRow], [newCount]] = await Promise.all([
+    db
+      .select({
+        job: schema.jobs,
+        tracker: schema.applicationTrackers,
+      })
+      .from(schema.jobs)
+      .leftJoin(
+        schema.applicationTrackers,
+        eq(schema.applicationTrackers.jobId, schema.jobs.id),
+      )
+      .where(where)
+      .orderBy(
+        // Unacknowledged jobs first (the "new" badge), then newest postings
+        asc(schema.jobs.acknowledgedAt),
+        desc(schema.jobs.postedAt),
+        desc(schema.jobs.firstSeenAt),
+      )
+      .limit(requestedLimit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.jobs)
+      .where(where),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.jobs)
+      .where(and(eq(schema.jobs.active, true), isNull(schema.jobs.acknowledgedAt))),
+  ]);
 
   const jobs = rows.map((r) => serializeJob(r.job, r.tracker ?? null));
 
-  const [newCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.jobs)
-    .where(and(eq(schema.jobs.active, true), isNull(schema.jobs.acknowledgedAt)));
-
   return {
     jobs,
-    total: jobs.length,
+    total: Number(totalRow?.count ?? 0),
     newSinceLastVisit: Number(newCount?.count ?? 0),
+    page,
+    pageSize: requestedLimit,
   };
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
 }
 
 /** Mark all currently-unacknowledged jobs as seen. Clears the badge. */
