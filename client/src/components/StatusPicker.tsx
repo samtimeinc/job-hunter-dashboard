@@ -16,7 +16,7 @@ export function StatusPicker({ value, onChange, disabled }: Props) {
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as ApplicationStatus)}
     >
-      <option value="">Set status…</option>
+      <option value="">Status…</option>
       {STATUS_OPTIONS.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}

@@ -12,7 +12,11 @@ interface AdzunaResult {
     id: string;
     title?: string;
     company?: { display_name?: string };
+    /** Adzuna tracking link — redirects through Adzuna and often expires
+     *  to the homepage when opened outside the API session. Avoid. */
     url?: string;
+    /** Direct link to the employer's original job posting. Prefer this. */
+    redirect_url?: string;
     location?: { display_name?: string; area?: string[] };
     description?: string;
     salary_min?: number;
@@ -72,7 +76,11 @@ export async function scrapeAdzuna(
           externalId: r.id,
           company: r.company?.display_name ?? 'Unknown',
           title: r.title ?? 'Untitled',
-          url: r.url ?? '',
+          // Prefer redirect_url (direct employer link); fall back to the
+          // tracking `url` only when Adzuna omits redirect_url. The tracker
+          // link expires to the Adzuna homepage, which is the "apply links
+          // go home" bug.
+          url: r.redirect_url || r.url || '',
           location: r.location?.display_name ?? null,
           workMode: detectWorkMode(
             [r.description, r.location?.area?.join(', ')].join(' '),

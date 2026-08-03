@@ -105,7 +105,7 @@ export function JobTable({
               <th className="px-4 py-2 font-medium">Location</th>
               <th className="px-4 py-2 font-medium">Salary</th>
               <th className="px-4 py-2 font-medium">Posted</th>
-              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">Set Status</th>
               <th className="px-4 py-2 font-medium">Apply</th>
               <th className="px-4 py-2 font-medium text-right">—</th>
             </tr>
