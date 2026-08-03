@@ -96,6 +96,27 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   { name: 'Scribd', matchNames: ['scribd'], career: { type: 'ashby', slug: 'ScribdInc' } },
 
   // ═══════════════════════════════════════════════════════════════════════
+  // Lever boards (legacy startups that didn't migrate to Ashby/Greenhouse)
+  // Verified live 2026-08-02 against api.lever.co/v0/postings/<slug>
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Getty Images', matchNames: ['getty images', 'gettyimages'], career: { type: 'lever', slug: 'gettyimages' } },
+  { name: 'Relay',        matchNames: ['relay', 'relaypro'],          career: { type: 'lever', slug: 'relay'      } },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Workday tenants (enterprise + consulting). All 8 endpoints below were
+  // verified live 2026-08-02 by POSTing to /wday/cxs/<tenant>/<site>/jobs
+  // with searchText "React" and confirming >= 4 postings came back.
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Concentrix',   matchNames: ['concentrix'],                                     career: { type: 'workday', host: 'https://cnx.wd1.myworkdayjobs.com',          tenant: 'cnx',         site: 'external_global'        } },
+  { name: 'Amgen',        matchNames: ['amgen'],                                            career: { type: 'workday', host: 'https://amgen.wd1.myworkdayjobs.com',        tenant: 'amgen',       site: 'Careers'                } },
+  { name: 'BigCommerce',  matchNames: ['bigcommerce', 'big commerce'],                     career: { type: 'workday', host: 'https://bigcommerce.wd12.myworkdayjobs.com', tenant: 'bigcommerce', site: 'Commerce'              } },
+  { name: 'Quantiphi',    matchNames: ['quantiphi'],                                        career: { type: 'workday', host: 'https://quantiphi.wd1.myworkdayjobs.com',   tenant: 'quantiphi',   site: 'Careers_at_Quantiphi'   } },
+  { name: 'BMO',          matchNames: ['bmo', 'bank of montreal'],                          career: { type: 'workday', host: 'https://bmo.wd3.myworkdayjobs.com',          tenant: 'bmo',         site: 'External'               } },
+  { name: 'RELX',         matchNames: ['relx'],                                             career: { type: 'workday', host: 'https://relx.wd3.myworkdayjobs.com',         tenant: 'relx',        site: 'relx'                   } },
+  { name: 'MillerKnoll',  matchNames: ['millerknoll', 'miller knoll'],                      career: { type: 'workday', host: 'https://millerknoll.wd1.myworkdayjobs.com',  tenant: 'millerknoll', site: 'MillerKnoll'            } },
+  { name: 'Prudential',   matchNames: ['prudential', 'pgim'],                               career: { type: 'workday', host: 'https://pru.wd5.myworkdayjobs.com',          tenant: 'pru',         site: 'Careers'                } },
+
+  // ═══════════════════════════════════════════════════════════════════════
   // In-house career portals (scraped via Playwright, no JSON API)
   // ═══════════════════════════════════════════════════════════════════════
   // Only entries whose adapter has been verified live belong here. To add a

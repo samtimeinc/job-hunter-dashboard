@@ -15,10 +15,21 @@ interface GreenhouseJob {
   updated_at?: string;
   metadata?: { name: string; value: string }[];
   departments?: { name: string }[];
+  /** Full HTML description — only present when `?content=true` is requested.
+   *  Many boards (Figma, Robinhood) bury the only "remote" / "hybrid" mention
+   *  in this body text instead of in `location.name`, so we sniff it for the
+   *  work-mode keyword as a fallback. */
+  content?: string;
 }
 
 interface GreenhouseBoard {
   jobs?: GreenhouseJob[];
+}
+
+/** Strip HTML tags so a work-mode regex hits plain text only. */
+function stripTags(html: string | null | undefined): string {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
 }
 
 export async function scrapeGreenhouse(
@@ -45,21 +56,36 @@ export async function scrapeGreenhouse(
           );
         return matchesAny(haystack, keywords) || looksLikeEng;
       })
-      .map((j) => ({
-        source,
-        externalId: String(j.id),
-        company: companyName,
-        companySlug,
-        title: j.title ?? 'Untitled',
-        url: j.absolute_url ?? '',
-        location: j.location?.name ?? null,
-        workMode: detectWorkMode(j.location?.name),
-        postedAt: j.updated_at ? new Date(j.updated_at) : null,
-        tags:
-          j.departments?.map((d) => d.name).filter(Boolean) ??
-          j.metadata?.map((m) => m.value).filter(Boolean) ??
-          [],
-      }));
+      .map((j) => {
+        // Greenhouse exposes no structured `workplaceType` field — `location.name`
+        // is the only first-class location data. But many boards (Figma,
+        // Robinhood) put location.name = "Berlin, Germany" (the office) while
+        // the job is actually remote/hybrid, with that detail only mentioned
+        // in the description body. Sniff title + description as a fallback.
+        const locationName = j.location?.name ?? null;
+        const seen = detectWorkMode(locationName);
+        const workMode =
+          seen !== 'unknown'
+            ? seen
+            : detectWorkMode(
+                [j.title, stripTags(j.content)].filter(Boolean).join(' '),
+              );
+        return {
+          source,
+          externalId: String(j.id),
+          company: companyName,
+          companySlug,
+          title: j.title ?? 'Untitled',
+          url: j.absolute_url ?? '',
+          location: locationName,
+          workMode,
+          postedAt: j.updated_at ? new Date(j.updated_at) : null,
+          tags:
+            j.departments?.map((d) => d.name).filter(Boolean) ??
+            j.metadata?.map((m) => m.value).filter(Boolean) ??
+            [],
+        };
+      });
     return { source, jobs };
   } catch (err) {
     return { source, jobs: [], error: (err as Error).message };

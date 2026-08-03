@@ -24,7 +24,14 @@ export async function scrapeRemotive(keywords: string[]): Promise<ScraperResult>
     const data = await fetchJson<{ jobs: RemotiveJob[] }>(
       'https://remotive.com/api/remote-jobs?category=software-dev',
     );
-    const filtered = (data.jobs ?? []).filter((j) => matchesAny(j.title, keywords));
+    // Search across title AND tags. Remotive tags carry the tech stack
+    // (e.g. ["react","typescript","node"]) — title-only filtering was
+    // rejecting every generic-role posting ("Senior Frontend Engineer"),
+    // which is exactly why Remotive always returned 0 jobs.
+    const filtered = (data.jobs ?? []).filter((j) => {
+      const haystack = [j.title, ...(j.tags ?? [])].join(' ');
+      return matchesAny(haystack, keywords);
+    });
     const jobs: RawJob[] = filtered.map((j) => ({
       source,
       externalId: String(j.id),
