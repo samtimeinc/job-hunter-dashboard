@@ -15,7 +15,7 @@ Don't use Moment.js (we use date-fns).
 
 ## Keep in mind
 Keep code clean, modular, readable, and maintanable.
-UI should look modern, clean, use colors effectively to differentiation.
+UI should look modern, clean, use colors effectively for the purpose of differentiation.
 You have the freedome to make suggestions for improvement anywhere you see fit.
 
 ## Handoff

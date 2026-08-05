@@ -17,6 +17,10 @@ export interface RawJob {
   salaryPeriod?: 'year' | 'hour' | null;
   postedAt?: Date | null;
   tags?: string[];
+  /** Optional: direct application URL from source (e.g., iCIMS apply_url) */
+  applyUrl?: string;
+  /** Optional: company domain for constructing likely URLs */
+  companyDomain?: string;
 }
 
 export interface ScraperResult {

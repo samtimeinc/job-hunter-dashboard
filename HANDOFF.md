@@ -1,16 +1,16 @@
 # HANDOFF — Job Hunt Dashboard
 
 > Final read for the next agent (human or otherwise) picking this up.
-> Last verified working: **2026-07-31**. Read this *before* touching anything.
+> Last verified working: **2026-08-05**. Read this *before* touching anything.
 
 ---
 
 ## 0. TL;DR
 
-- ✅ **Personal job-hunting dashboard** that scrapes 12 target tech companies + 3 aggregator APIs for React/Node/TypeScript roles in Seattle-or-Remote.
+- ✅ **Personal job-hunting dashboard** that scrapes **27 direct company sources** (Greenhouse / Ashby / Lever / Workday / GitHub iCIMS / 1 Playwright) + three aggregator APIs for React/Node/TypeScript roles in Seattle-or-Remote.
 - ✅ **Live, working end-to-end**: scraping → Postgres (Neon) → Express API → React/Tailwind dashboard → click-to-apply.
-- ✅ **Auto-runs** via Vercel cron at 08:00 & 20:00 PT.
-- ⏳ **A few non-blocking gaps** — listed below in priority order with file paths.
+- ✅ **Auto-runs** via Vercel cron at 08:00 & 20:00 PT. Last working scan covered 416 jobs across 5+ active source types.
+- ⏳ **Four small non-blocking gaps** — listed below in priority order, each with a concrete fix plan.
 
 If you only do one thing first: **read `/memories/repo/jobhunt-dashboard.md`** — every gotcha, every verified slug, every workaround is there. Re-reading it before any scraper/DB work is mandatory.
 
@@ -45,70 +45,98 @@ jobhunt-dashboard/
 
 - Typecheck clean across all three packages (`shared`, `server`, `client`).
 - Last production build (`npm run build`) succeeds.
-- DB has **416 jobs** across 5 sources after the location filter prune.
-- Latest scan output (above) shows the **location filter working** — Ashby rejected 185, Greenhouse rejected 249, Amazon (Playwright) rejected 20.
-- The Settings modal in the UI controls keywords + locations at runtime; changes take effect on the next `npm run scan`.
-
-### Stats from the latest scan
-
-| Source | Roles fetched | Inserted this run | Filtered out |
-|---|---|---|---|
-| Adzuna | 13 | 2 | (geo-filtered at query time) |
-| JSearch | 10 | 2 | 8 |
-| Ashby (OpenAI/Notion/Linear/Vercel/Scribd) | 399+ | small dedup | **185** |
-| Greenhouse (Stripe, Anthropic, etc) | ~360 across 5 sites | dedup | **249** |
-| Playwright (Amazon only) | 27 | dedup | 20 |
+- DB has **416 jobs** across 5+ source types after the location filter prune.
+- **Hide-jobs feature shipped end-to-end**: schema column (`hidden_at`), `hide / unhide` endpoints (`server/src/api/jobs.ts`), `visibility` filter on `listJobs()`, hidden rows excluded from stats. UI gate is the FilterBar `VisibilityToggle`.
+- Settings modal edits keywords + locations at runtime; changes take effect on the next `npm run scan`.
+- Location filter has a one-shot prune script — run it any time settings or the filter rule change.
 
 ---
 
 ## 3. Outstanding work, prioritized
 
-### 🟡 P1 — One scraper intermittently aborts
+Each item spells out **exactly what to change** so the next agent doesn't have to re-derive it.
 
-In the latest scan, one Greenhouse line showed:
-```
-greenhouse: fetched 0, errors: This operation was aborted
-```
+### 🟡 P1 — Greenhouse scraper silently aborts on heavy boards
 
-This is the **default 10s `fetchJson` timeout** in `server/src/scrapers/types.ts` tripping on a heavy Greenhouse board (likely Datadog, ~300 jobs). Fix: pass an explicit `timeoutMs` for Greenhouse, similar to how Ashby is already bumped to 20s. One-line change.
+**Status: still open, verified 2026-08-05.** `server/src/scrapers/greenhouse.ts` calls `fetchJson(url)` with no `timeoutMs`, so it inherits the default 10s in `server/src/scrapers/types.ts`. Big Greenhouse boards (Datadog ~300, Stripe ~500) intermittently exceed that and emit `greenhouse: fetched 0, errors: This operation was aborted`. **Ashby is already bumped to 20s and Lever to 25s — Greenhouse is the last hold-out with the default.**
 
-### 🟡 P1 — Three Playwright adapters are dead code
+**Fix (one line):**
+1. Edit `server/src/scrapers/greenhouse.ts`.
+2. Change the `fetchJson<GreenhouseBoard>(url)` call to accept an options object: `fetchJson<GreenhouseBoard>(url, { timeoutMs: 25_000 })` — match the existing pattern in `lever.ts:44`.
+3. Run `npm run scan` and watch the Greenhouse log lines to confirm `fetched 0` is gone.
 
-`server/src/scrapers/playwright/{microsoft,starbucks,google}.ts` are implemented but their DOM selectors were never verified against the live sites. Each file now opens with a `⚠️ STATUS: ADAPTER NOT REGISTERED` banner spelling out the re-activation steps:
+No schema change, no migration. The same treatment could be applied to `workday.ts` / `github.ts` later if either starts showing the symptom, but neither has so far.
 
-1. Open the live site headlessly via a `scripts/debug-<name>.ts` (template: the deleted `debug-amazon.ts`)
-2. Reverse-engineer the actual card selectors
-3. Update the file
-4. Add a `career` block to the company entry in `server/src/scrapers/targets.ts`
-5. Move the slug to the "verified" section of `PlaywrightAdapter` in the same file
+### 🔵 P2 — README undercounts companies and omits the iCIMS adapter
 
-The three companies are currently **badge-only** entries — they DO get matched against Adzuna/JSearch results by name. So they're not zero-coverage, just not directly scraped. Microsoft and Starbucks are most worth fixing; Google's DOM was deliberately obfuscated with random class names so probably not worth the recurring maintenance.
+The README was updated once but the company count line is stale: current total is **27 direct-scraped + 9 badge-only**, and the **GitHub iCIMS adapter** (`server/src/scrapers/github.ts`, added 2026-08-04) isn't listed. Update the two stale sentences only — don't rewrite the file.
 
-### 🟢 P2 — JSearch traffic shape is weird
+**Specific edits in `README.md`:**
+1. Intro paragraph currently reads "direct scrapers for **12 target companies** and three free-aggregator APIs." → change `12` → `27`.
+2. In the Features data-source list, add `GitHub (iCIMS)` alongside the Greenhouse / Ashby / Lever / Workday line.
+3. Add a one-line pointer near the bottom of the Tech Stack section: `> For build-of-record gotchas, see /memories/repo/jobhunt-dashboard.md`.
 
-- The "type" of JSearch uses `/search-v2` on `jsearch.p.rapidapi.com`. Other users on RapidAPI have seen this endpoint go stale monthly. If JSearch starts 404'ing again, re-probe against `/search` and `jsearch4.p.rapidapi.com` variants.
-- The response shape doesn't document `job_highlights` / `employer_reviews` — could be richer salary fields here if you want to surface them.
+### 🔵 P2 — No tests; one function worth covering
 
-### 🟢 P2 — No tests
+Repo has zero tests — no `__tests__/`, no `vitest.config.*`, no `*.test.ts` anywhere. The only function with a thorough enough spec to warrant coverage is `passesLocationFilter()` in `server/src/scrapers/types.ts` (DC trap, Remote wildcard, Seattle-alias regex, null-location rule). The 16-case spec lives as comments in `/memories/repo/jobhunt-dashboard.md` ("Location filter" section).
 
-Only throwaway diagnostic scripts (`scripts/debug-*.ts`) which get deleted after use. The **one piece that genuinely warrants a unit test** is `passesLocationFilter()` in `server/src/scrapers/types.ts` — there's a documented spec for it (16 cases incl. the DC trap) that lived in `test-filter.ts` until cleanup. Re-create that file as `server/src/scrapers/__tests__/filter.test.ts` and wire up vitest if you want CI coverage there.
+**How to add:**
+1. `npm i -D vitest -w server` (root workspace).
+2. Add `"test": "vitest run"` to `server/package.json` scripts.
+3. Create `server/src/scrapers/__tests__/filter.test.ts` with the 16 documented cases.
+4. Wire it into the P3 CI workflow below.
 
-### 🟢 P2 — README is stale
-
-The README at repo root still describes the original 4-company setup. Things missing:
-- The full target-company list (now 12 direct + 3 badge-only)
-- Section about Playwright scraping for in-house portals
-- The new `npm run prune:locations` script
-- The location filter rule and how to extend it
-- Pointer to `/memories/repo/jobhunt-dashboard.md` for build-of-record gotchas
+No `vitest.config.ts` needed at minimum — Vitest auto-discovers `__tests__/**`.
 
 ### 🟢 P3 — No CI
 
-GitHub Actions config exists in `/memories/cicd-ideas-nextjs-firebase-vercel.md` for a Next.js+Firebase stack but nothing here. Lowest-effort win: a `.github/workflows/ci.yml` running `npm ci && npm run typecheck && npm run build` on PRs. Vercel already builds + deploys on `main`, so this is just a fast feedback loop for PRs.
+`/memories/cicd-ideas-nextjs-firebase-vercel.md` has the user's preferred CI shape for a different stack. The lowest-effort pin for *this* repo is a `.github/workflows/ci.yml` that gives fast PR feedback (~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns deploys + preview URLs.**
 
-### 🟢 P3 — Settings admin UI is half-baked
+**Create `.github/workflows/ci.yml`:**
+```yaml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      # if you added vitest in P2:
+      # - run: npm test
+```
 
-The Settings modal in `client/src/components/SettingsModal.tsx` edits a comma-separated list for `targetCompanies`, `keywords`, `locations`. Adding multi-select chips for `locations` (Seattle/Portland/Bay Area/Remote as toggleable chips) would make filter management friendlier. Not blocking.
+### 🟢 P3 — Settings admin UI uses three plain text inputs
+
+`client/src/components/SettingsModal.tsx` still uses `splitList()` on three comma-separated `<input>` fields for `targetCompanies / keywords / locations`. The lowest-friction UX win is **location chips** because `locations` has a small, fixed vocabulary (Seattle, Portland, Bay Area, Remote).
+
+**How to do it:**
+1. Keep the existing comma-encoded API contract — the server stores locations as a `text[]` array, no schema change.
+2. Add a local `LOCATIONS = ['Seattle', 'Portland', 'Bay Area', 'Remote']` constant in `SettingsModal.tsx`.
+3. Render those as clickable pill toggles that add/remove entries from `draft.locations`, mirroring the `VisibilityToggle` pattern from `FilterBar.tsx`.
+4. Leave `targetCompanies` and `keywords` as plain inputs (open-ended lists, chips don't fit).
+
+Gotcha: `noUncheckedIndexedAccess` is on in the base tsconfig — array-index lookups need `!` or guards. Already documented in repo memory under "Hide jobs feature".
+
+### ⛔ Explicitly NOT to do
+
+- **Do not re-enable the Microsoft / Starbucks / Google Playwright adapters without first reverse-engineering the live DOM.** They're kept with `⚠️ STATUS: ADAPTER NOT REGISTERED` banners; their selectors were never verified. Reactivation steps are spelled out in the file headers and the repo memory. (Google's DOM was deliberately obfuscated, so probably not worth the recurring maintenance.) These three companies still get **badge-matched** against Adzuna / JSearch / Remotive by `matchNames`, so coverage isn't zero.
+- **Do not write a "deploy to Vercel" Action** — Vercel already handles builds, deploys, and preview URLs. GitHub Actions here should be code-quality only.
+- **Do not hand-edit `db/migrations/`** — per `agents.md`. Schema changes go through `npm run db:push` / `npm run db:generate`.
+
+### ℹ️ Parked (no action, monitor only)
+
+- **JSearch endpoint staleness**: the scraper uses `/search-v2` on `jsearch.p.rapidapi.com`. If it starts returning 404s, re-probe against `/search` and `jsearch4.p.rapidapi.com` per the notes in `/memories/repo/jobhunt-dashboard.md` ("JSearch via RapidAPI").
+- **Dead Playwright adapters for Microsoft/Starbucks/Google**: documented as badge-only with re-activation steps in `server/src/scrapers/targets.ts`. No coverage loss because they badge-match against Adzuna / JSearch / Remotive.
 
 ---
 
@@ -123,16 +151,18 @@ Vite proxy /api/* (client/vite.config.ts proxy → :3001)
   ▼
 Express app (server/src/app.ts)
   │
-  ├── GET /api/jobs             → listJobs()    page 100 + new-since-visit badge
-  ├── GET /api/jobs/stats       → getStats()
+  ├── GET /api/jobs             → listJobs()     page 100 + new-since-visit badge + visibility filter
+  ├── GET /api/jobs/stats       → getStats()     hidden rows excluded from every count
   ├── POST /api/jobs/acknowledge → acknowledgeAll()  (clears "New" badge)
+  ├── POST   /api/jobs/:id/hide → hideJob()     (204)
+  ├── DELETE /api/jobs/:id/hide → unhideJob()   (204)
   ├── POST /api/jobs/:id/tracker → upsertTracker()  (per-job status)
   ├── GET  /api/settings        → keywords/locations editing
-  ├── PUT  /api/settings        → update those
+  ├── PUT /api/settings         → update those
   ├── POST /api/scan            → runScan()   (gated by SCAN_SECRET)
   │
   └── runScan() orchestrator:
-        Parallel (api):    Remotive + Adzuna + JSearch + Greenhouse + Ashby + Lever + Workday
+        Parallel (api):    Remotive + Adzuna + JSearch + Greenhouse + Ashby + Lever + Workday + GitHub
         Serial   (browser): Playwright adapters (one shared Chromium)
         ──────────────────
         For each RawJob returned:
@@ -149,6 +179,7 @@ Express app (server/src/app.ts)
 - **Server tsconfig has `"DOM"` lib.** Required only because `page.evaluate()` callbacks reference `document/HTMLElement` despite running in browser context. Don't try to remove it.
 - **Vault-mapped `Remote` is in the locations list** but Adzuna silently strips it before passing as `where=` (geographic-only). The orchestrator filter does the actual remote matching. Two-step is intentional.
 - **The 19 "San Francisco"-located Ashby rows** in the DB are not bugs — they're roles where Ashby's `workplaceType=Remote` and the `San Francisco` field is just the office of record. The filter correctly keeps them under the "Remote" rule.
+- **Vite + monorepo `envDir`**: Vite only loads `.env` from its own root, but this repo's single `.env` lives at the monorepo root. Fixed by `envDir: monorepoRoot` in `client/vite.config.ts`. Vercel injects env from its dashboard at build time, so this fix doesn't apply there — `VITE_SCAN_SECRET` must be a Project Environment Variable (Production + Preview) and requires a rebuild to take effect.
 
 ---
 
@@ -160,11 +191,13 @@ Documented at the top of `server/src/scrapers/targets.ts`. Quick version:
    - `boards.greenhouse.io/<slug>` → use `greenhouse` template
    - `jobs.ashbyhq.com/<slug>` → use `ashby` template
    - `jobs.lever.co/<slug>` → use `lever` template
-   - Custom in-house portal → use `playwright` template (requires the adapter slug exists)
+   - Workday tenant (`<co>.wdN.myworkdayjobs.com`) → use `workday` template (probe `/wday/cxs/<tenant>/<site>/jobs`)
+   - iCIMS tenant with `/api/jobs` JSON feed → use `github` template (today GitHub is the only one)
+   - Custom in-house portal → use `playwright` template (requires the adapter slug exists and is verified)
 2. Add an entry to `TARGET_COMPANIES` in `targets.ts` using one of the TEMPLATE_* blocks at the bottom of the file.
 3. `npm run scan` — no build, no migration.
 
-**Verify the slug is right first** with a curl probe — most false starts are stale/sideways slugs.
+**Verify the slug is right first** with a curl probe — most false starts are stale/sideways slugs. The repo memory has an "ATS identification cheat-sheet" with the exact probe endpoint per ATS type (Greenhouse / Ashby / Lever / Workday / iCIMS / SPA signatures).
 
 ---
 
@@ -208,9 +241,12 @@ JSEARCH_RAPIDAPI_KEY
 
 ## 9. Memory pointers
 
-- **`/memories/repo/jobhunt-dashboard.md`** — exhaustive build-of-record: every gotcha, verified slug, DB constraint, scraper quirk. **Read first** before scraper or DB work.
-- **`/memories/session/architecture.md`** — session snapshot of the architecture decisions.
-- **`/memories/cicd-ideas-nextjs-firebase-vercel.md`** and **`/memories/github-actions-cra.md`** — CI patterns the user has used before. Use as a starting point if implementing workflow #5 below.
+- **`/memories/repo/jobhunt-dashboard.md`** — exhaustive build-of-record: every gotcha, verified slug, DB constraint, scraper quirk. **Read first** before any scraper or DB work. Highlights relevant to outstanding work:
+  - "GitHub iCIMS adapter" — the JSON endpoint shape, blank-department quirk, `ANY → unknown` mapping rule.
+  - "Workday gotchas" — three latent bugs (limit ≤ 20, multi-token inconsistency, locale+site URL shape) and the verified-tenant list.
+  - "Location filter" — the 16-case spec for `passesLocationFilter()` (feeds the P2 test work).
+- **`/memories/cicd-ideas-nextjs-firebase-vercel.md`** — CI patterns the user has used before. Use as the starting point for the P3 CI workflow (translate from Next.js/Firebase shape to plain Vite + Express).
+- **`/memories/github-actions-cra.md`** — concrete `npm ci` + lint + build workflow shape already validated in another repo.
 
 ---
 

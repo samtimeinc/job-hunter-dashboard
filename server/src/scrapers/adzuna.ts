@@ -11,11 +11,14 @@ interface AdzunaResult {
   results?: {
     id: string;
     title?: string;
-    company?: { display_name?: string };
+    company?: { display_name?: string; website_url?: string };
     /** Adzuna tracking link — redirects through Adzuna and often expires
      *  to the homepage when opened outside the API session. Avoid. */
     url?: string;
-    /** Direct link to the employer's original job posting. Prefer this. */
+    /** Direct link to the employer's original job posting. Prefer this.
+     *  If both redirect_url and url are missing, we'll construct a fallback
+     *  using the Adzuna search results page with the job ID as a query param,
+     *  though this is less reliable than direct links. */
     redirect_url?: string;
     location?: { display_name?: string; area?: string[] };
     description?: string;
@@ -31,6 +34,129 @@ interface AdzunaResult {
 function roundSalary(value: number | null | undefined): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return Math.round(value);
+}
+
+/**
+ * Extract the best candidate application URL from a job's description text.
+ * Looks for explicit "apply at" / "apply here" anchors first, then any
+ * raw http(s) URL that is NOT obviously a generic webmail/social link that
+ * usually appears in boilerplate ("contact us at", footers, etc.).
+ *
+ * Returns the first plausible URL or null if none found.
+ */
+function extractApplyUrlFromDescription(
+  html: string | undefined,
+): string | null {
+  if (!html) return null;
+  const urlRegex = /https?:\/\/[^\s"'<>()]+/gi;
+  const matches = html.match(urlRegex) ?? [];
+  if (matches.length === 0) return null;
+
+  // Domains we never want to surface as "apply" links.
+  const blocked = [
+    'linkedin.com',
+    'facebook.com',
+    'twitter.com',
+    'x.com',
+    'instagram.com',
+    'youtube.com',
+    'wikipedia.org',
+    'adzuna.com',
+    'google.com/mail',
+    'gmail.com',
+    'outlook.com',
+    'yahoo.com',
+  ];
+
+  const candidates = matches.filter((u) => {
+    const lower = u.toLowerCase();
+    return !blocked.some((b) => lower.includes(b));
+  });
+  if (candidates.length === 0) return null;
+
+  // Prefer URLs that appear right after an "apply" cue in the source text.
+  const anchor = html.toLowerCase().indexOf('apply');
+  if (anchor !== -1) {
+    const tail = html.slice(anchor);
+    const anchorMatch = tail.match(urlRegex);
+    if (anchorMatch && anchorMatch[0]) return anchorMatch[0];
+  }
+  // Otherwise return the first non-blocked candidate.
+  return candidates[0] ?? null;
+}
+
+/**
+ * Normalise a company website URL to a root domain we can use to construct
+ * a likely `/careers` path. Falls back to deriving a domain from company name.
+ */
+function deriveCompanyDomain(
+  website: string | undefined,
+  companyName: string | undefined,
+): string | null {
+  if (website) {
+    try {
+      const u = new URL(website);
+      return u.hostname.replace(/^www\./, '');
+    } catch {
+      /* fall through to name-based guess */
+    }
+  }
+  if (companyName) {
+    const slug = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .trim();
+    if (slug && slug.length > 1) return `${slug}.com`;
+  }
+  return null;
+}
+
+/**
+ * Resolve the best URL for an Adzuna job.
+ *
+ * IMPORTANT CONTEXT (verified 2026-08-05):
+ *   Adzuna's API returns two URL-like fields — `url` and `redirect_url`. Both
+ *   are Adzuna-hosted trackers that **expire to the homepage when opened
+ *   outside the API session**. When surfaced in the dashboard, clicking
+ *   "Apply" bounces users to Adzuna's homepage for live jobs (e.g. F5
+ *   Networks AI Engineer, id `5815340039`). So neither field is safe to use
+ *   as the primary link.
+ *
+ *   What IS stable and public is the Adzuna details page at
+ *   `https://www.adzuna.com/details/{id}` — a real, browseable job page that
+ *   never expires. So that becomes the primary URL.
+ *
+ * Priority order:
+ *   1. Adzuna details page built from the job id (stable + always present)
+ *   2. Company website from Adzuna's `company.website_url` field
+ *   3. Company domain derived from the company name (best-effort `name.com`)
+ *   4. Adzuna search results page scoped to the job title
+ *   5. URL extracted from the job description (only if no id present)
+ */
+function buildJobUrl(
+  job: {
+    id: string;
+    title?: string;
+    company?: { display_name?: string; website_url?: string };
+  },
+  description?: string,
+): string {
+  // 1. Adzuna details page — stable, public, never expires.
+  if (job.id) return `https://www.adzuna.com/details/${job.id}`;
+
+  // 2 / 3. No id? Fall back to the company website, then a name-derived domain.
+  const domain = deriveCompanyDomain(
+    job.company?.website_url,
+    job.company?.display_name,
+  );
+  if (domain) return `https://${domain}`;
+
+  // 4. No company info? Try extracting an apply URL from the description.
+  const fromDescription = extractApplyUrlFromDescription(description);
+  if (fromDescription) return fromDescription;
+
+  // 5. Last resort: Adzuna search page scoped to the job title.
+  return `https://www.adzuna.com/au/search-jobs?ca=us&kw=${encodeURIComponent(job.title ?? '')}&refid=ads${job.id ? `&aid=${job.id}` : ''}`;
 }
 
 export async function scrapeAdzuna(
@@ -76,11 +202,29 @@ export async function scrapeAdzuna(
           externalId: r.id,
           company: r.company?.display_name ?? 'Unknown',
           title: r.title ?? 'Untitled',
-          // Prefer redirect_url (direct employer link); fall back to the
-          // tracking `url` only when Adzuna omits redirect_url. The tracker
-          // link expires to the Adzuna homepage, which is the "apply links
-          // go home" bug.
-          url: r.redirect_url || r.url || '',
+          // CRITICAL: Adzuna's `url` and `redirect_url` are tracker links
+          // that expire to the homepage outside the API session (verified
+          // 2026-08-05: F5 Networks AI Engineer id 5815340039). Always use
+          // the stable details page built from the job id instead.
+          // buildJobUrl() resolves in this priority: details page → company
+          // website → name-derived domain → description URL → search page.
+          url: buildJobUrl(
+            {
+              id: r.id,
+              title: r.title,
+              company: r.company
+                ? {
+                    display_name: r.company.display_name,
+                    website_url: r.company.website_url,
+                  }
+                : undefined,
+            },
+            r.description,
+          ),
+          // Surface the original tracker URL as a secondary applyUrl in case
+          // downstream code (UI or stats) wants to try the tracker too. It
+          // often expires but costs nothing to store.
+          applyUrl: r.redirect_url || r.url || undefined,
           location: r.location?.display_name ?? null,
           workMode: detectWorkMode(
             [r.description, r.location?.area?.join(', ')].join(' '),
@@ -92,6 +236,14 @@ export async function scrapeAdzuna(
           salaryCurrency: 'USD',
           salaryPeriod: 'year',
           postedAt: r.created ? new Date(r.created) : null,
+          // Surface the company website (when provided) so downstream code
+          // can construct /careers links in the UI if the main url falls back
+          // to a search page.
+          companyDomain:
+            deriveCompanyDomain(
+              r.company?.website_url,
+              r.company?.display_name,
+            ) ?? undefined,
         });
       }
     }
