@@ -9,6 +9,7 @@ import { scrapeJSearch } from './jsearch.js';
 import { scrapeLever } from './lever.js';
 import { scrapeRemotive } from './remotive.js';
 import { scrapeWorkday } from './workday.js';
+import { scrapeGitHub } from './github.js';
 import { scrapePlaywright } from './playwright/index.js';
 import { closeBrowser } from './playwright/browser.js';
 import { passesLocationFilter, type ScraperResult } from './types.js';
@@ -68,6 +69,9 @@ export async function runScan(): Promise<ScanResult[]> {
             c.name,
             effectiveKeywords,
           );
+        case 'github':
+          // Single-tenant iCIMS board — no slug, always GitHub itself.
+          return scrapeGitHub(c.name, effectiveKeywords);
         // playwright handled separately below.
         case 'playwright':
           throw new Error('unreachable');

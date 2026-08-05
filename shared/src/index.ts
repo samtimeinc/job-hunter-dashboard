@@ -11,7 +11,8 @@ export type JobSource =
   | 'lever'
   | 'ashby'
   | 'playwright'
-  | 'workday';
+  | 'workday'
+  | 'github';
 
 export type WorkMode = 'remote' | 'hybrid' | 'onsite' | 'unknown';
 

@@ -25,6 +25,7 @@ const SOURCE_OPTIONS: { value: JobSource; label: string }[] = [
   { value: 'ashby', label: 'Ashby' },
   { value: 'playwright', label: 'In-house portals' },
   { value: 'workday', label: 'Workday' },
+  { value: 'github', label: 'GitHub (iCIMS)' },
 ];
 
 const WORK_MODES: { value: WorkMode; label: string }[] = [

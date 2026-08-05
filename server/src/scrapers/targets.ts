@@ -39,7 +39,10 @@ export interface TargetCompany {
     | { type: 'ashby'; slug: string }
     | { type: 'workday'; host: string; tenant: string; site: string }
     /** In-house portal scraped via a headless browser. */
-    | { type: 'playwright'; adapter: PlaywrightAdapter };
+    | { type: 'playwright'; adapter: PlaywrightAdapter }
+    /** GitHub's iCIMS-backed JSON API at github.careers/api/jobs — single-tenant,
+     *  so no slug needed. See server/src/scrapers/github.ts. */
+    | { type: 'github' };
 }
 
 /**
@@ -70,6 +73,10 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   { name: 'Vercel', matchNames: ['vercel'],                career: { type: 'ashby',     slug: 'vercel'  } },
   { name: 'Linear', matchNames: ['linear'],                career: { type: 'ashby',     slug: 'linear'  } },
   { name: 'Notion', matchNames: ['notion labs', 'notion'], career: { type: 'ashby',     slug: 'notion'  } },
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/cloudflare (290 roles).
+  { name: 'Cloudflare', matchNames: ['cloudflare'], career: { type: 'greenhouse', slug: 'cloudflare' } },
+  // Verified live 2026-08-04 against api.ashbyhq.com/posting-api/job-board/ramp (120 roles).
+  { name: 'Ramp', matchNames: ['ramp', 'ramp business corporation'], career: { type: 'ashby', slug: 'ramp' } },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Productivity / collaboration
@@ -84,6 +91,8 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // ═══════════════════════════════════════════════════════════════════════
   { name: 'Stripe',    matchNames: ['stripe'],     career: { type: 'greenhouse', slug: 'stripe'    } },
   { name: 'Robinhood', matchNames: ['robinhood'],  career: { type: 'greenhouse', slug: 'robinhood' } },
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/coinbase (163 roles).
+  { name: 'Coinbase', matchNames: ['coinbase'], career: { type: 'greenhouse', slug: 'coinbase' } },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Observability / data
@@ -91,9 +100,31 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   { name: 'Datadog', matchNames: ['datadog'], career: { type: 'greenhouse', slug: 'datadog' } },
 
   // ═══════════════════════════════════════════════════════════════════════
+  // Gaming / creative platforms
+  // ═════════════════════════════════════════════════════════════════════════
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/roblox (220 roles).
+  { name: 'Roblox', matchNames: ['roblox'], career: { type: 'greenhouse', slug: 'roblox' } },
+
+  // ═════════════════════════════════════════════════════════════════════════
   // Reading / content
-  // ═══════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
   { name: 'Scribd', matchNames: ['scribd'], career: { type: 'ashby', slug: 'ScribdInc' } },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Discovery / inspiration
+  // ═════════════════════════════════════════════════════════════════════════
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/pinterest (226 roles).
+  { name: 'Pinterest', matchNames: ['pinterest'], career: { type: 'greenhouse', slug: 'pinterest' } },
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/reddit (186 roles).
+  { name: 'Reddit', matchNames: ['reddit', 'reddit inc'], career: { type: 'greenhouse', slug: 'reddit' } },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // Travel / marketplace
+  // ═════════════════════════════════════════════════════════════════════════
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/airbnb (189 roles).
+  { name: 'Airbnb', matchNames: ['airbnb'], career: { type: 'greenhouse', slug: 'airbnb' } },
+  // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/lyft (169 roles).
+  { name: 'Lyft', matchNames: ['lyft'], career: { type: 'greenhouse', slug: 'lyft' } },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Lever boards (legacy startups that didn't migrate to Ashby/Greenhouse)
@@ -124,6 +155,11 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // and prove it returns real jobs via a debug script before flipping it on.
   { name: 'Amazon', matchNames: ['amazon', 'aws', 'amazon web services'], career: { type: 'playwright', adapter: 'amazon' } },
 
+  // GitHub careers uses iCIMS with a clean JSON API at github.careers/api/jobs.
+  // Verified live 2026-08-04: 74 postings, every field populated consistently.
+  // See server/src/scrapers/github.ts (NOT a Playwright target — pure HTTP).
+  { name: 'GitHub', matchNames: ['github', 'github inc', 'githubinc'], career: { type: 'github' } },
+
   // ═══════════════════════════════════════════════════════════════════════
   // Badge-only (matched against Adzuna / JSearch / Remotive results by name)
   // ═══════════════════════════════════════════════════════════════════════
@@ -139,6 +175,43 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   { name: 'Microsoft', matchNames: ['microsoft', 'msft', 'azure'] },
   { name: 'Starbucks', matchNames: ['starbucks', 'sbux'] },
   { name: 'Google', matchNames: ['google', 'alphabet', 'google llc', 'youtube'] },
+
+  // Batch added 2026-08-04 (early-career friendly, React/TS/Node/Next stack).
+  // Each was probed against Greenhouse / Ashby / Lever / Workday before landing
+  // here — none exposed a clean JSON API we can scrape, so they badge-match
+  // against Adzuna / JSearch / Remotive results by company name instead.
+  //   PAYPAL  — careers.pypl.com is a Q4 Inc portal behind a login wall; the
+  //             legacy paypal.wd3.myworkdayjobs.com tenant returns HTTP 422 on
+  //             every site name (decommissioned). Not publicly scrapable.
+  //   ETSY    — careers.etsy.com runs on SmashFly (CloudFront-hosted SPA); no
+  //             public JSON feed. Would need a Playwright adapter to scrape.
+  //   ADOBE   — careers.adobe.com runs on the Phenom platform; Phenom has a
+  //             JSON endpoint but no scraper adapter exists in this repo yet.
+  //   SHOPIFY — shopify.com/careers is an in-house brochure that deliberately
+  //             de-emphasises individual postings (routes to discipline pages);
+  //             no JSON feed.
+  { name: 'PayPal',  matchNames: ['paypal', 'paypal holdings'] },
+  { name: 'Etsy',    matchNames: ['etsy'] },
+  { name: 'Adobe',   matchNames: ['adobe'] },
+  { name: 'Shopify', matchNames: ['shopify'] },
+
+  // Batch added 2026-08-04. Probed against Greenhouse / Ashby / Lever / Workday
+  // before landing here — no clean JSON API, badge-matches aggregators instead.
+  //   ATLASSIAN — careers live at atlassian.com/company/careers/all-jobs on the
+  //              Beamery platform (signed `flows.beamery.com/atlassian` link).
+  //              The all-jobs page is JS-rendered (no inline JSON, no __NEXT_DATA__,
+  //              no /api/* endpoint reachable without query parameters). Would
+  //              need a Playwright adapter + reverse-engineered XHR to scrape.
+  { name: 'Atlassian', matchNames: ['atlassian'] },
+
+  //   UBER — lives at jobs.uber.com on a Next.js SSR app served behind Cloudflare.
+  //          /api/* returns HTTP 403 (bot-protected), so the only data reachable
+  //          server-side is the 10 jobs embedded in the flight payload of the
+  //          SSR HTML — and `?search=` is ignored by the SSR layer (every query
+  //          returns the same 10 ML/AV-Labs roles). Useful scraping requires
+  //          hitting the SPA's XHR endpoint with a real browser (Playwright),
+  //          which is too brittle/labor-intensive for one extra company.
+  { name: 'Uber', matchNames: ['uber', 'uber technologies'] },
 
   // ═══════════════════════════════════════════════════════════════════════
   // DEPRIORITISED — documented so we don't rediscover these issues

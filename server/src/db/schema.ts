@@ -31,7 +31,8 @@ export type JobSource =
   | 'lever'
   | 'ashby'
   | 'playwright'
-  | 'workday';
+  | 'workday'
+  | 'github';
 
 export const jobs = pgTable(
   'jobs',
