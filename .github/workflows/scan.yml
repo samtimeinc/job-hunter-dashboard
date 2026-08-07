@@ -1,0 +1,55 @@
+# Scans all job sources on a schedule by calling the deployed /api/cron endpoint.
+#
+# Why this exists:
+# Vercel's free (Hobby) tier limits cron jobs to once per day, but we want to
+# scan twice daily. GitHub Actions scheduled workflows run for free on public
+# repos and on private repos within the free-minute quota, so we use it as the
+# scheduler and let Vercel handle only the HTTP execution.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   SCAN_SECRET  — must match the SCAN_SECRET env var set in Vercel.
+#   APP_URL      — your deployed app base URL, e.g. https://your-app.vercel.app
+#
+# To trigger a scan immediately without waiting for the schedule, run the
+# workflow manually from the Actions tab (the "Run workflow" button).
+
+name: Scheduled job scan
+
+on:
+  schedule:
+    # Runs at 08:00 and 20:00 UTC every day.
+    # Note: scheduled workflows run on the latest commit on the default branch
+    # and may drift by a few minutes during periods of high GitHub load.
+    - cron: '0 8,20 * * *'
+  workflow_dispatch: {} # enables the manual "Run workflow" button
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger /api/cron
+        env:
+          SCAN_SECRET: ${{ secrets.SCAN_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::APP_URL secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ -z "$SCAN_SECRET" ]; then
+            echo "::error::SCAN_SECRET secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          echo "Hitting $APP_URL/api/cron ..."
+          # --fail makes curl exit non-zero on 4xx/5xx so the workflow step fails.
+          # -sS hides progress but still shows errors.
+          curl --fail -sS -X POST \
+            -H "Authorization: Bearer $SCAN_SECRET" \
+            -H "Content-Type: application/json" \
+            "$APP_URL/api/cron" \
+            -o response.json -w "HTTP %{http_code}\n"
+
+          echo "----- response -----"
+          cat response.json
