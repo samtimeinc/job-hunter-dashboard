@@ -1,4 +1,4 @@
-import { runScan } from '../../server/src/scrapers/orchestrator.js';
+import { runScan } from '../server/src/scrapers/orchestrator.js';
 
 /**
  * Scan endpoint invoked by an external scheduler (GitHub Actions) —

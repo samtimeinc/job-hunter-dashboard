@@ -24,7 +24,7 @@
     "db:studio": "npm run studio -w server"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^20.19.43",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.23.0",
     "drizzle-orm": "^0.32.0",
