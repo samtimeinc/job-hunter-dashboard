@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { jobsRouter } from './api/jobs.js';
 import { scanRouter } from './api/scan.js';
 import { settingsRouter } from './api/settings.js';
+import { agentRouter } from './api/agent.js';
 import { HttpError } from './api/middleware.js';
 
 /** Build the Express app. Called from both the standalone server (src/index.ts)
@@ -18,6 +19,8 @@ export function createApp(): express.Express {
   app.use('/api/jobs', jobsRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/scan', scanRouter);
+  // Agent surface — every route under here requires AGENT_API_KEY.
+  app.use('/api/agent', agentRouter);
 
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     const status = err instanceof HttpError ? err.status : 500;

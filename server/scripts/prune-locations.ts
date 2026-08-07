@@ -54,4 +54,3 @@ main()
     console.error('[prune] fatal:', err);
     process.exit(1);
   });
-

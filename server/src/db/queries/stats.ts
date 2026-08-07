@@ -7,10 +7,7 @@ import { db, schema } from '../client.js';
 export async function getStats(): Promise<StatsResponse> {
   const visible = and(eq(schema.jobs.active, true), isNull(schema.jobs.hiddenAt));
 
-  const [totalRow] = await db
-    .select({ total: count() })
-    .from(schema.jobs)
-    .where(visible);
+  const [totalRow] = await db.select({ total: count() }).from(schema.jobs).where(visible);
 
   const [newRow] = await db
     .select({ count: count() })

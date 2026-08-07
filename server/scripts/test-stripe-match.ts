@@ -4,9 +4,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const r = await fetch(
-  'https://boards-api.greenhouse.io/v1/boards/stripe/jobs?content=true',
-);
+const r = await fetch('https://boards-api.greenhouse.io/v1/boards/stripe/jobs?content=true');
 const j = (await r.json()) as any;
 console.log('total jobs:', j.meta?.total);
 
@@ -27,7 +25,7 @@ for (const job of j.jobs.slice(0, 200)) {
   if (has(`${title} ${dept} ${desc}`)) all++;
 
   // Show a sample that ONLY matches via description
-  if (all && (!has(title) && !has(`${title} ${dept}`))) {
+  if (all && !has(title) && !has(`${title} ${dept}`)) {
     console.log('\nSample desc-only match:');
     console.log('  title:', job.title, '/ dept:', dept);
     break;

@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: Job Hunt Dashboard — Agent API
+  version: 1.0.0
+  description: >
+    Read-only and tracker-write surface for an external job-application
+    workflow. Authenticated via a server-side `AGENT_API_KEY`. The API never
+    accepts application submission — that step is always human-approved.
+
+    This document is the source of truth for the surface; the live server
+    also serves an equivalent JSON document at
+    `GET /api/agent/openapi.json` (behind the same AGENT_API_KEY).
+
+servers:
+  - url: /api/agent
+    description: Relative to the dashboard host (works for local + deployed).
+
+components:
+  securitySchemes:
+    agentApiKey:
+      type: http
+      scheme: bearer
+      description: >
+        Pass AGENT_API_KEY as the bearer token:
+        `Authorization: Bearer <AGENT_API_KEY>`. The same value is also
+        accepted via the `X-Agent-Key` header.
+security:
+  - agentApiKey: []
+
+schemas:
+  Job:
+    type: object
+    required:
+      - id
+      - externalId
+      - source
+      - company
+      - title
+      - url
+      - location
+      - workMode
+      - salaryMin
+      - salaryMax
+      - salaryCurrency
+      - salaryPeriod
+      - postedAt
+      - firstSeenAt
+      - lastSeenAt
+      - active
+      - tags
+      - isTargetCompany
+    properties:
+      id: { type: string, format: uuid, description: Internal job id (stable). }
+      externalId: { type: string, description: Source-specific id used for dedup. }
+      source:
+        type: string
+        enum: [remotive, adzuna, jsearch, greenhouse, lever, ashby, playwright, workday, github]
+      company: { type: string }
+      companySlug: { type: string, nullable: true }
+      title: { type: string }
+      url: { type: string, format: uri, description: Canonical details page. }
+      applyUrl:
+        type: string
+        format: uri
+        nullable: true
+        description: Direct apply URL when known; null when the source did not provide one.
+      companyDomain:
+        type: string
+        nullable: true
+        description: Normalised company domain e.g. "stripe.com". Null when not derivable.
+      location: { type: string, nullable: true }
+      workMode: { type: string, enum: [remote, hybrid, onsite, unknown] }
+      salaryMin: { type: integer, nullable: true, description: Annual or hourly integer lower bound; null when not posted. }
+      salaryMax: { type: integer, nullable: true }
+      salaryCurrency: { type: string, nullable: true, example: USD }
+      salaryPeriod: { type: string, enum: [year, hour], nullable: true }
+      postedAt: { type: string, format: date-time, nullable: true }
+      firstSeenAt: { type: string, format: date-time }
+      lastSeenAt: { type: string, format: date-time }
+      active: { type: boolean, description: True when the job still appeared in the most recent scan. }
+      tags: { type: array, items: { type: string } }
+      isTargetCompany: { type: boolean }
+      acknowledgedAt: { type: string, format: date-time, nullable: true }
+      hiddenAt: { type: string, format: date-time, nullable: true }
+      descriptionText:
+        type: string
+        nullable: true
+        description: >
+          Plain-text job body normalised by the scraper. Null when the source
+          exposes no description (Remotive, Workday list endpoint, GitHub
+          iCIMS, Playwright). Always null on the search list unless
+          includeDescription=true.
+      descriptionHtml:
+        type: string
+        nullable: true
+        description: Original HTML description when the scraper received HTML (Greenhouse `content`).
+      tracker:
+        oneOf:
+          - $ref: '#/components/schemas/ApplicationTracker'
+          - type: 'null'
+        description: Linked tracker row, or null if the job has no tracker yet.
+
+  ApplicationTracker:
+    type: object
+    required: [id, jobId, status, appliedAt, notes, updatedAt]
+    properties:
+      id: { type: string, format: uuid }
+      jobId: { type: string, format: uuid }
+      status: { type: string, enum: [to_apply, applied, interviewing] }
+      appliedAt: { type: string, format: date-time, nullable: true }
+      notes: { type: string, nullable: true }
+      updatedAt: { type: string, format: date-time }
+
+  JobListResponse:
+    type: object
+    required: [jobs, total, nextCursor]
+    properties:
+      jobs: { type: array, items: { $ref: '#/components/schemas/Job' } }
+      total: { type: integer, description: Total jobs matching the filters across all pages. }
+      nextCursor:
+        type: string
+        nullable: true
+        description: Pass back as `cursor` for the next page, or null when the end is reached.
+
+  UpdateTrackerRequest:
+    type: object
+    required: [status]
+    properties:
+      status: { type: string, enum: [to_apply, applied, interviewing] }
+      appliedAt:
+        type: string
+        format: date-time
+        nullable: true
+        description: ISO timestamp. Ignored for status=to_apply; defaults to now() when omitted otherwise.
+      notes: { type: string, nullable: true }
+
+  AgentTrackerResponse:
+    type: object
+    required: [tracker]
+    properties:
+      tracker: { $ref: '#/components/schemas/ApplicationTracker' }
+
+responses:
+  Unauthorized:
+    description: AGENT_API_KEY missing or wrong.
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [status, message]
+          properties:
+            status: { type: integer, example: 401 }
+            message: { type: string, example: Unauthorized }
+  Forbidden:
+    description: AGENT_API_KEY not configured on the server (fail-closed).
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [status, message]
+          properties:
+            status: { type: integer, example: 503 }
+            message: { type: string }
+  NotFound:
+    description: Job not found.
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [status, message]
+          properties:
+            status: { type: integer, example: 404 }
+            message: { type: string, example: 'Job not found' }
+  BadRequest:
+    description: Malformed request body (e.g. invalid tracker status).
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [status, message]
+          properties:
+            status: { type: integer, example: 400 }
+            message: { type: string }
+
+paths:
+  /:
+    get:
+      summary: Capability summary
+      description: Small JSON object describing the agent surface and pointing at the OpenAPI document.
+      responses:
+        '200':
+          description: Capability summary.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/Forbidden' }
+
+  /openapi.json:
+    get:
+      summary: OpenAPI document
+      description: Returns the OpenAPI 3.0 JSON document (this file, served live).
+      responses:
+        '200':
+          description: OpenAPI 3.0 JSON document.
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/Forbidden' }
+
+  /jobs:
+    get:
+      summary: Search jobs
+      description: >
+        Cursor- or page-paginated search across the dashboard job set. Pass
+        `statuses=to_apply` to find every job currently in the "to apply"
+        state (including ones the dashboard has never touched). With
+        `includeDescription=true`, the response carries descriptionText and
+        descriptionHtml per job.
+      parameters:
+        - name: search
+          in: query
+          description: Case-insensitive substring match on title + company (and descriptionText when includeDescription=true).
+          required: false
+          schema: { type: string }
+        - name: statuses
+          in: query
+          description: Comma-separated application statuses. 'to_apply' includes untouched jobs.
+          required: false
+          schema: { type: string, example: 'to_apply,applied' }
+        - name: sources
+          in: query
+          description: Comma-separated source filter.
+          required: false
+          schema: { type: string, example: 'greenhouse,lever' }
+        - name: workModes
+          in: query
+          description: Comma-separated work-mode filter.
+          required: false
+          schema: { type: string, example: 'remote,hybrid' }
+        - name: companyScope
+          in: query
+          required: false
+          schema: { type: string, enum: [all, target, other] }
+        - name: visibility
+          in: query
+          required: false
+          schema: { type: string, enum: [active, hidden, all] }
+        - name: postedWithinDays
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: active
+          in: query
+          required: false
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          description: Page size, clamped to [1, 200]. Default 50.
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: pageSize
+          in: query
+          description: Alias for `limit`.
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: cursor
+          in: query
+          description: Opaque cursor returned in the previous response `nextCursor`.
+          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          description: 1-based page index. Ignored when `cursor` is also supplied.
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: includeDescription
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Paginated job list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/Forbidden' }
+
+  /jobs/{id}:
+    get:
+      summary: Get one job
+      description: Returns the full normalised job record including description fields and tracker data.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Complete job record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job]
+                properties:
+                  job: { $ref: '#/components/schemas/Job' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Forbidden' }
+
+  /jobs/{id}/tracker:
+    post:
+      summary: Update application-tracker status
+      description: >
+        Upsert the tracker row for a job. Returns the updated record. Does NOT
+        submit any application externally — submission always stays
+        human-approved.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTrackerRequest' }
+      responses:
+        '200':
+          description: Updated tracker.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentTrackerResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Forbidden' }

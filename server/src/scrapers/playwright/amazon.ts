@@ -22,7 +22,12 @@ import type { WorkMode } from '@jobhunt/shared';
 const AMAZON_BASE = 'https://www.amazon.jobs/en/search';
 
 export const amazonAdapter: PlaywrightAdapter = {
-  async scrape({ browser, companyName, keywords, limit }: {
+  async scrape({
+    browser,
+    companyName,
+    keywords,
+    limit,
+  }: {
     browser: Browser;
     companyName: string;
     keywords: string[];
@@ -53,11 +58,9 @@ export const amazonAdapter: PlaywrightAdapter = {
         // The SPA needs a beat to render the result tiles.
         await page.waitForTimeout(4000);
         // If this keyword returns zero hits, no anchors appear — move on.
-        await page
-          .waitForSelector('a[href*="/en/jobs/"]', { timeout: 12_000 })
-          .catch(() => {
-            console.warn(`[playwright:amazon] no results for "${keyword}"`);
-          });
+        await page.waitForSelector('a[href*="/en/jobs/"]', { timeout: 12_000 }).catch(() => {
+          console.warn(`[playwright:amazon] no results for "${keyword}"`);
+        });
 
         const cards = await page.evaluate(() => {
           const anchors = Array.from(
@@ -75,16 +78,12 @@ export const amazonAdapter: PlaywrightAdapter = {
             for (let i = 0; i < 6; i++) {
               if (!card.parentElement) break;
               card = card.parentElement;
-              if (
-                card.querySelector('h3, h2, .job-title, [class*="title"], li.job')
-              ) break;
+              if (card.querySelector('h3, h2, .job-title, [class*="title"], li.job')) break;
             }
 
             // Inside the card, the title is in an <h3>, and the location is in
             // a span/div whose class includes "location" or "text".
-            const titleEl = card.querySelector<HTMLElement>(
-              'h3, h2, .job-title, [class*="title"]',
-            );
+            const titleEl = card.querySelector<HTMLElement>('h3, h2, .job-title, [class*="title"]');
             // Amazon uses `.location` and `.text-and-location` containers.
             const locationEl = card.querySelector<HTMLElement>(
               '.location, [class*="location"], .job-location',
@@ -92,18 +91,17 @@ export const amazonAdapter: PlaywrightAdapter = {
             // Fallback: scrape from innerText and split on the location pattern.
             let title = (titleEl?.innerText || '').replace(/\s+/g, ' ').trim();
             // Amazon uses `.location` and `.text-and-location` containers.
-            let location: string | null = (locationEl?.innerText || '')
-              .replace(/\s+/g, ' ')
-              .trim() || null;
+            let location: string | null =
+              (locationEl?.innerText || '').replace(/\s+/g, ' ').trim() || null;
             // Strip any trailing " | Job ID: <id>" the location element includes.
-            location = location
-              ? location.replace(/\s*\|\s*Job ID:\s*\d+\s*$/i, '').trim()
-              : null;
+            location = location ? location.replace(/\s*\|\s*Job ID:\s*\d+\s*$/i, '').trim() : null;
             if (!title) {
               // Last resort: parse the entire card text.
               const fullText = (card.innerText || '').replace(/\s+/g, ' ').trim();
               // Match "<Title> <Location> | Job ID: <id>"
-              const m = fullText.match(/^(.*?)\s+([A-Z][\w .'-]+(?:,\s*[A-Z][\w .'-]+)+(?:,\s*[A-Z]{2,})?)\s*\|\s*Job ID:\s*(\d+)$/);
+              const m = fullText.match(
+                /^(.*?)\s+([A-Z][\w .'-]+(?:,\s*[A-Z][\w .'-]+)+(?:,\s*[A-Z]{2,})?)\s*\|\s*Job ID:\s*(\d+)$/,
+              );
               if (m) {
                 title = m[1]!.trim();
                 location = m[2]!.trim();

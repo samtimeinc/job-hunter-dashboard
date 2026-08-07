@@ -70,11 +70,14 @@ export async function scrapeAshby(
           title: p.title ?? 'Untitled',
           url: p.jobUrl ?? p.applyUrl ?? '',
           location: p.location ?? null,
-          workMode: p.isRemote
-            ? 'remote'
-            : coerceWorkMode(p.workplaceType),
+          workMode: p.isRemote ? 'remote' : coerceWorkMode(p.workplaceType),
           postedAt: p.publishedAt ? new Date(p.publishedAt) : null,
           tags,
+          descriptionText:
+            typeof p.descriptionPlain === 'string' && p.descriptionPlain.trim()
+              ? p.descriptionPlain.trim()
+              : null,
+          applyUrl: p.applyUrl ?? null,
         };
       });
     return { source, jobs };

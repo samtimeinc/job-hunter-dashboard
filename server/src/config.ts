@@ -27,6 +27,10 @@ export const config = {
   scanSecret: process.env.SCAN_SECRET ?? '',
   /** Optional user-gate key for the dashboard itself (single-user). */
   dashboardToken: process.env.DASHBOARD_TOKEN ?? '',
+  /** Secret authorising machine-to-machine access to /api/agent.
+   *  Server-only — MUST NOT be surfaced as a VITE_* var (would ship to the
+   *  browser bundle). Accept the key via Authorization: Bearer or X-Agent-Key. */
+  agentApiKey: process.env.AGENT_API_KEY ?? '',
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
   isVercel: Boolean(process.env.VERCEL),
   keys: {

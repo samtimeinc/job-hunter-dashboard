@@ -43,6 +43,15 @@ export interface Job {
   acknowledgedAt?: string | null;
   /** Timestamp when the user hid this job, or null if it's still visible. */
   hiddenAt?: string | null;
+  /** Plain-text job description. Null when the source provides none. */
+  descriptionText?: string | null;
+  /** Original HTML description (Greenhouse content, Adzuna HTML). Null otherwise. */
+  descriptionHtml?: string | null;
+  /** Direct application URL from the source, if distinct from `url`. */
+  applyUrl?: string | null;
+  /** Normalised company domain (e.g. "stripe.com"). Null when unknown. */
+  companyDomain?: string | null;
+  active?: boolean;
   /** Application tracker row linked to this job, if any. */
   tracker?: ApplicationTracker | null;
 }
@@ -125,4 +134,50 @@ export interface DashboardSettings {
   targetCompanies: string[];
   keywords: string[];
   locations: string[];
+}
+
+/** Agent-facing job. Same as {@link Job} but with `active` and the detail
+ *  fields always present (description fields only when requested by the
+ *  query — otherwise null to keep payloads small). */
+export interface AgentJob extends Job {
+  active: boolean;
+}
+
+/** Response shape for the cursor-paginated agent search endpoint. */
+export interface AgentJobListResponse {
+  jobs: AgentJob[];
+  total: number;
+  /** Opaque cursor to pass back as `cursor` for the next page, or null when
+   *  the end of the result set has been reached. */
+  nextCursor: string | null;
+}
+
+/** Filters accepted by the agent job search. Mirrors the dashboard filters
+ *  (minus new-since-visit) plus a cursor pagination mode and a description
+ *  inclusion flag. */
+export interface AgentJobFilters {
+  search?: string;
+  statuses?: ApplicationStatus[];
+  sources?: JobSource[];
+  workModes?: WorkMode[];
+  companyScope?: CompanyScope;
+  visibility?: Visibility | 'all';
+  postedWithinDays?: number;
+  /** When false, includes only jobs still seen in the last scan (default). */
+  active?: boolean;
+  limit?: number;
+  /** Explicit page size override (alias for `limit`). */
+  pageSize?: number;
+  /** 1-based page index — only used when `cursor`/`page` is requested. */
+  page?: number;
+  /** Opaque cursor string returned from a previous response. Preferred over
+   *  `page` for stable iteration. */
+  cursor?: string;
+  /** When true, include descriptionText/descriptionHtml on each job. */
+  includeDescription?: boolean;
+}
+
+/** Returned by the agent tracker endpoint after an upsert. */
+export interface AgentTrackerResponse {
+  tracker: ApplicationTracker;
 }

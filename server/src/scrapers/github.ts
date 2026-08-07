@@ -93,9 +93,7 @@ export async function scrapeGitHub(
         // Mirror greenhouse.ts: pass through anything in the engineering
         // family so the user's React/Node/TypeScript net catches GitHub's
         // generic eng postings, then narrowed by the user's keywords OR.
-        const haystack = [p.title, p.category, p.department]
-          .filter(Boolean)
-          .join(' ');
+        const haystack = [p.title, p.category, p.department].filter(Boolean).join(' ');
         const looksLikeEng =
           /\b(eng(?:ineer(?:ing)?)?|developer|software|backend|frontend|full[- ]?stack|sre|infrastructure|web|services|platform)\b/i.test(
             [p.category, p.department, p.title].filter(Boolean).join(' '),
@@ -108,8 +106,7 @@ export async function scrapeGitHub(
         // the country with a semicolon ("United States; United States") for
         // every record. Prefer short, fall back to full, then name.
         const location = p.short_location ?? p.full_location ?? p.location_name ?? null;
-        const workMode =
-          coerceWorkMode(p.location_type) ?? detectWorkMode(location);
+        const workMode = coerceWorkMode(p.location_type) ?? detectWorkMode(location);
         const tags = [
           p.department,
           p.category,
@@ -123,7 +120,7 @@ export async function scrapeGitHub(
         // if for some reason slug is missing.
         const url = p.slug
           ? `https://www.github.careers/careers-home/job/${p.slug}`
-          : p.apply_url ?? '';
+          : (p.apply_url ?? '');
 
         return {
           source,
@@ -136,6 +133,12 @@ export async function scrapeGitHub(
           workMode,
           postedAt: p.posted_date ? new Date(p.posted_date) : null,
           tags,
+          // GitHub's iCIMS `description` is HTML but heavy with tracking/
+          // boilerplate markup — not a clean posting body. We deliberately do
+          // NOT surface it as a description to avoid presenting noise as the
+          // job description. The apply_url field is preserved as metadata even
+          // though the canonical `url` (slug-based public path) is preferred.
+          applyUrl: p.apply_url ?? null,
         };
       });
     return { source, jobs };

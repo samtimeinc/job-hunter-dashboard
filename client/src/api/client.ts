@@ -16,9 +16,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(
-      `${res.status} ${res.statusText}` + (body?.message ? `: ${body.message}` : ''),
-    );
+    throw new Error(`${res.status} ${res.statusText}` + (body?.message ? `: ${body.message}` : ''));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -39,20 +37,16 @@ function toQuery(filters: JobFilters): string {
 }
 
 export const api = {
-  listJobs: (filters: JobFilters = {}) =>
-    request<JobListResponse>(`/api/jobs${toQuery(filters)}`),
+  listJobs: (filters: JobFilters = {}) => request<JobListResponse>(`/api/jobs${toQuery(filters)}`),
   getStats: () => request<StatsResponse>('/api/jobs/stats'),
-  acknowledge: () =>
-    request<AcknowledgeResponse>('/api/jobs/acknowledge', { method: 'POST' }),
+  acknowledge: () => request<AcknowledgeResponse>('/api/jobs/acknowledge', { method: 'POST' }),
   updateTracker: (jobId: string, body: UpdateTrackerRequest) =>
     request<void>(`/api/jobs/${jobId}/tracker`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  hideJob: (jobId: string) =>
-    request<void>(`/api/jobs/${jobId}/hide`, { method: 'POST' }),
-  unhideJob: (jobId: string) =>
-    request<void>(`/api/jobs/${jobId}/hide`, { method: 'DELETE' }),
+  hideJob: (jobId: string) => request<void>(`/api/jobs/${jobId}/hide`, { method: 'POST' }),
+  unhideJob: (jobId: string) => request<void>(`/api/jobs/${jobId}/hide`, { method: 'DELETE' }),
   getSettings: () => request<DashboardSettings>('/api/settings'),
   saveSettings: (body: DashboardSettings) =>
     request<DashboardSettings>('/api/settings', {

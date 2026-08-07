@@ -64,33 +64,57 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // ═══════════════════════════════════════════════════════════════════════
   // AI Research & Foundations
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'OpenAI',    matchNames: ['openai', 'open ai'],    career: { type: 'ashby',     slug: 'openai'    } },
-  { name: 'Anthropic', matchNames: ['anthropic'],            career: { type: 'greenhouse', slug: 'anthropic' } },
+  { name: 'OpenAI', matchNames: ['openai', 'open ai'], career: { type: 'ashby', slug: 'openai' } },
+  {
+    name: 'Anthropic',
+    matchNames: ['anthropic'],
+    career: { type: 'greenhouse', slug: 'anthropic' },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Developer tools / infra
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Vercel', matchNames: ['vercel'],                career: { type: 'ashby',     slug: 'vercel'  } },
-  { name: 'Linear', matchNames: ['linear'],                career: { type: 'ashby',     slug: 'linear'  } },
-  { name: 'Notion', matchNames: ['notion labs', 'notion'], career: { type: 'ashby',     slug: 'notion'  } },
+  { name: 'Vercel', matchNames: ['vercel'], career: { type: 'ashby', slug: 'vercel' } },
+  { name: 'Linear', matchNames: ['linear'], career: { type: 'ashby', slug: 'linear' } },
+  {
+    name: 'Notion',
+    matchNames: ['notion labs', 'notion'],
+    career: { type: 'ashby', slug: 'notion' },
+  },
   // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/cloudflare (290 roles).
-  { name: 'Cloudflare', matchNames: ['cloudflare'], career: { type: 'greenhouse', slug: 'cloudflare' } },
+  {
+    name: 'Cloudflare',
+    matchNames: ['cloudflare'],
+    career: { type: 'greenhouse', slug: 'cloudflare' },
+  },
   // Verified live 2026-08-04 against api.ashbyhq.com/posting-api/job-board/ramp (120 roles).
-  { name: 'Ramp', matchNames: ['ramp', 'ramp business corporation'], career: { type: 'ashby', slug: 'ramp' } },
+  {
+    name: 'Ramp',
+    matchNames: ['ramp', 'ramp business corporation'],
+    career: { type: 'ashby', slug: 'ramp' },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Productivity / collaboration
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Airtable',   matchNames: ['airtable'],     career: { type: 'greenhouse', slug: 'airtable'   } },
-  { name: 'Figma',      matchNames: ['figma'],        career: { type: 'greenhouse', slug: 'figma'      } },
-  { name: 'Discord',    matchNames: ['discord'],      career: { type: 'greenhouse', slug: 'discord'    } },
-  { name: 'Smartsheet', matchNames: ['smartsheet'],   career: { type: 'greenhouse', slug: 'smartsheet' } },
+  { name: 'Airtable', matchNames: ['airtable'], career: { type: 'greenhouse', slug: 'airtable' } },
+  { name: 'Figma', matchNames: ['figma'], career: { type: 'greenhouse', slug: 'figma' } },
+  { name: 'Discord', matchNames: ['discord'], career: { type: 'greenhouse', slug: 'discord' } },
+  {
+    name: 'Smartsheet',
+    matchNames: ['smartsheet'],
+    career: { type: 'greenhouse', slug: 'smartsheet' },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Payments / fintech
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Stripe',    matchNames: ['stripe'],     career: { type: 'greenhouse', slug: 'stripe'    } },
-  { name: 'Robinhood', matchNames: ['robinhood'],  career: { type: 'greenhouse', slug: 'robinhood' } },
+  { name: 'Stripe', matchNames: ['stripe'], career: { type: 'greenhouse', slug: 'stripe' } },
+  {
+    name: 'Robinhood',
+    matchNames: ['robinhood'],
+    career: { type: 'greenhouse', slug: 'robinhood' },
+  },
   // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/coinbase (163 roles).
   { name: 'Coinbase', matchNames: ['coinbase'], career: { type: 'greenhouse', slug: 'coinbase' } },
 
@@ -114,9 +138,17 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // Discovery / inspiration
   // ═════════════════════════════════════════════════════════════════════════
   // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/pinterest (226 roles).
-  { name: 'Pinterest', matchNames: ['pinterest'], career: { type: 'greenhouse', slug: 'pinterest' } },
+  {
+    name: 'Pinterest',
+    matchNames: ['pinterest'],
+    career: { type: 'greenhouse', slug: 'pinterest' },
+  },
   // Verified live 2026-08-04 against boards-api.greenhouse.io/v1/boards/reddit (186 roles).
-  { name: 'Reddit', matchNames: ['reddit', 'reddit inc'], career: { type: 'greenhouse', slug: 'reddit' } },
+  {
+    name: 'Reddit',
+    matchNames: ['reddit', 'reddit inc'],
+    career: { type: 'greenhouse', slug: 'reddit' },
+  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // Travel / marketplace
@@ -130,22 +162,98 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // Lever boards (legacy startups that didn't migrate to Ashby/Greenhouse)
   // Verified live 2026-08-02 against api.lever.co/v0/postings/<slug>
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Getty Images', matchNames: ['getty images', 'gettyimages'], career: { type: 'lever', slug: 'gettyimages' } },
-  { name: 'Relay',        matchNames: ['relay', 'relaypro'],          career: { type: 'lever', slug: 'relay'      } },
+  {
+    name: 'Getty Images',
+    matchNames: ['getty images', 'gettyimages'],
+    career: { type: 'lever', slug: 'gettyimages' },
+  },
+  { name: 'Relay', matchNames: ['relay', 'relaypro'], career: { type: 'lever', slug: 'relay' } },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Workday tenants (enterprise + consulting). All 8 endpoints below were
   // verified live 2026-08-02 by POSTing to /wday/cxs/<tenant>/<site>/jobs
   // with searchText "React" and confirming >= 4 postings came back.
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Concentrix',   matchNames: ['concentrix'],                                     career: { type: 'workday', host: 'https://cnx.wd1.myworkdayjobs.com',          tenant: 'cnx',         site: 'external_global'        } },
-  { name: 'Amgen',        matchNames: ['amgen'],                                            career: { type: 'workday', host: 'https://amgen.wd1.myworkdayjobs.com',        tenant: 'amgen',       site: 'Careers'                } },
-  { name: 'BigCommerce',  matchNames: ['bigcommerce', 'big commerce'],                     career: { type: 'workday', host: 'https://bigcommerce.wd12.myworkdayjobs.com', tenant: 'bigcommerce', site: 'Commerce'              } },
-  { name: 'Quantiphi',    matchNames: ['quantiphi'],                                        career: { type: 'workday', host: 'https://quantiphi.wd1.myworkdayjobs.com',   tenant: 'quantiphi',   site: 'Careers_at_Quantiphi'   } },
-  { name: 'BMO',          matchNames: ['bmo', 'bank of montreal'],                          career: { type: 'workday', host: 'https://bmo.wd3.myworkdayjobs.com',          tenant: 'bmo',         site: 'External'               } },
-  { name: 'RELX',         matchNames: ['relx'],                                             career: { type: 'workday', host: 'https://relx.wd3.myworkdayjobs.com',         tenant: 'relx',        site: 'relx'                   } },
-  { name: 'MillerKnoll',  matchNames: ['millerknoll', 'miller knoll'],                      career: { type: 'workday', host: 'https://millerknoll.wd1.myworkdayjobs.com',  tenant: 'millerknoll', site: 'MillerKnoll'            } },
-  { name: 'Prudential',   matchNames: ['prudential', 'pgim'],                               career: { type: 'workday', host: 'https://pru.wd5.myworkdayjobs.com',          tenant: 'pru',         site: 'Careers'                } },
+  {
+    name: 'Concentrix',
+    matchNames: ['concentrix'],
+    career: {
+      type: 'workday',
+      host: 'https://cnx.wd1.myworkdayjobs.com',
+      tenant: 'cnx',
+      site: 'external_global',
+    },
+  },
+  {
+    name: 'Amgen',
+    matchNames: ['amgen'],
+    career: {
+      type: 'workday',
+      host: 'https://amgen.wd1.myworkdayjobs.com',
+      tenant: 'amgen',
+      site: 'Careers',
+    },
+  },
+  {
+    name: 'BigCommerce',
+    matchNames: ['bigcommerce', 'big commerce'],
+    career: {
+      type: 'workday',
+      host: 'https://bigcommerce.wd12.myworkdayjobs.com',
+      tenant: 'bigcommerce',
+      site: 'Commerce',
+    },
+  },
+  {
+    name: 'Quantiphi',
+    matchNames: ['quantiphi'],
+    career: {
+      type: 'workday',
+      host: 'https://quantiphi.wd1.myworkdayjobs.com',
+      tenant: 'quantiphi',
+      site: 'Careers_at_Quantiphi',
+    },
+  },
+  {
+    name: 'BMO',
+    matchNames: ['bmo', 'bank of montreal'],
+    career: {
+      type: 'workday',
+      host: 'https://bmo.wd3.myworkdayjobs.com',
+      tenant: 'bmo',
+      site: 'External',
+    },
+  },
+  {
+    name: 'RELX',
+    matchNames: ['relx'],
+    career: {
+      type: 'workday',
+      host: 'https://relx.wd3.myworkdayjobs.com',
+      tenant: 'relx',
+      site: 'relx',
+    },
+  },
+  {
+    name: 'MillerKnoll',
+    matchNames: ['millerknoll', 'miller knoll'],
+    career: {
+      type: 'workday',
+      host: 'https://millerknoll.wd1.myworkdayjobs.com',
+      tenant: 'millerknoll',
+      site: 'MillerKnoll',
+    },
+  },
+  {
+    name: 'Prudential',
+    matchNames: ['prudential', 'pgim'],
+    career: {
+      type: 'workday',
+      host: 'https://pru.wd5.myworkdayjobs.com',
+      tenant: 'pru',
+      site: 'Careers',
+    },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // In-house career portals (scraped via Playwright, no JSON API)
@@ -153,7 +261,11 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // Only entries whose adapter has been verified live belong here. To add a
   // new adapter: implement it in server/src/scrapers/playwright/<name>.ts
   // and prove it returns real jobs via a debug script before flipping it on.
-  { name: 'Amazon', matchNames: ['amazon', 'aws', 'amazon web services'], career: { type: 'playwright', adapter: 'amazon' } },
+  {
+    name: 'Amazon',
+    matchNames: ['amazon', 'aws', 'amazon web services'],
+    career: { type: 'playwright', adapter: 'amazon' },
+  },
 
   // GitHub careers uses iCIMS with a clean JSON API at github.careers/api/jobs.
   // Verified live 2026-08-04: 74 postings, every field populated consistently.
@@ -190,9 +302,9 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   //   SHOPIFY — shopify.com/careers is an in-house brochure that deliberately
   //             de-emphasises individual postings (routes to discipline pages);
   //             no JSON feed.
-  { name: 'PayPal',  matchNames: ['paypal', 'paypal holdings'] },
-  { name: 'Etsy',    matchNames: ['etsy'] },
-  { name: 'Adobe',   matchNames: ['adobe'] },
+  { name: 'PayPal', matchNames: ['paypal', 'paypal holdings'] },
+  { name: 'Etsy', matchNames: ['etsy'] },
+  { name: 'Adobe', matchNames: ['adobe'] },
   { name: 'Shopify', matchNames: ['shopify'] },
 
   // Batch added 2026-08-04. Probed against Greenhouse / Ashby / Lever / Workday
@@ -243,7 +355,5 @@ export const TARGET_COMPANIES: TargetCompany[] = [
 
 export function isTargetCompany(name: string): boolean {
   const lower = name.toLowerCase();
-  return TARGET_COMPANIES.some((c) =>
-    c.matchNames.some((m) => lower.includes(m.toLowerCase())),
-  );
+  return TARGET_COMPANIES.some((c) => c.matchNames.some((m) => lower.includes(m.toLowerCase())));
 }

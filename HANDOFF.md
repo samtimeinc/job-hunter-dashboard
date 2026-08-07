@@ -1,7 +1,7 @@
 # HANDOFF — Job Hunt Dashboard
 
 > Final read for the next agent (human or otherwise) picking this up.
-> Last verified working: **2026-08-05**. Read this *before* touching anything.
+> Last verified working: **2026-08-05**. Read this _before_ touching anything.
 
 ---
 
@@ -61,6 +61,7 @@ Each item spells out **exactly what to change** so the next agent doesn't have t
 **Status: still open, verified 2026-08-05.** `server/src/scrapers/greenhouse.ts` calls `fetchJson(url)` with no `timeoutMs`, so it inherits the default 10s in `server/src/scrapers/types.ts`. Big Greenhouse boards (Datadog ~300, Stripe ~500) intermittently exceed that and emit `greenhouse: fetched 0, errors: This operation was aborted`. **Ashby is already bumped to 20s and Lever to 25s — Greenhouse is the last hold-out with the default.**
 
 **Fix (one line):**
+
 1. Edit `server/src/scrapers/greenhouse.ts`.
 2. Change the `fetchJson<GreenhouseBoard>(url)` call to accept an options object: `fetchJson<GreenhouseBoard>(url, { timeoutMs: 25_000 })` — match the existing pattern in `lever.ts:44`.
 3. Run `npm run scan` and watch the Greenhouse log lines to confirm `fetched 0` is gone.
@@ -72,6 +73,7 @@ No schema change, no migration. The same treatment could be applied to `workday.
 The README was updated once but the company count line is stale: current total is **27 direct-scraped + 9 badge-only**, and the **GitHub iCIMS adapter** (`server/src/scrapers/github.ts`, added 2026-08-04) isn't listed. Update the two stale sentences only — don't rewrite the file.
 
 **Specific edits in `README.md`:**
+
 1. Intro paragraph currently reads "direct scrapers for **12 target companies** and three free-aggregator APIs." → change `12` → `27`.
 2. In the Features data-source list, add `GitHub (iCIMS)` alongside the Greenhouse / Ashby / Lever / Workday line.
 3. Add a one-line pointer near the bottom of the Tech Stack section: `> For build-of-record gotchas, see /memories/repo/jobhunt-dashboard.md`.
@@ -81,6 +83,7 @@ The README was updated once but the company count line is stale: current total i
 Repo has zero tests — no `__tests__/`, no `vitest.config.*`, no `*.test.ts` anywhere. The only function with a thorough enough spec to warrant coverage is `passesLocationFilter()` in `server/src/scrapers/types.ts` (DC trap, Remote wildcard, Seattle-alias regex, null-location rule). The 16-case spec lives as comments in `/memories/repo/jobhunt-dashboard.md` ("Location filter" section).
 
 **How to add:**
+
 1. `npm i -D vitest -w server` (root workspace).
 2. Add `"test": "vitest run"` to `server/package.json` scripts.
 3. Create `server/src/scrapers/__tests__/filter.test.ts` with the 16 documented cases.
@@ -90,9 +93,10 @@ No `vitest.config.ts` needed at minimum — Vitest auto-discovers `__tests__/**`
 
 ### 🟢 P3 — No CI
 
-`/memories/cicd-ideas-nextjs-firebase-vercel.md` has the user's preferred CI shape for a different stack. The lowest-effort pin for *this* repo is a `.github/workflows/ci.yml` that gives fast PR feedback (~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns deploys + preview URLs.**
+`/memories/cicd-ideas-nextjs-firebase-vercel.md` has the user's preferred CI shape for a different stack. The lowest-effort pin for _this_ repo is a `.github/workflows/ci.yml` that gives fast PR feedback (~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns deploys + preview URLs.**
 
 **Create `.github/workflows/ci.yml`:**
+
 ```yaml
 name: CI
 on:
@@ -120,6 +124,7 @@ jobs:
 `client/src/components/SettingsModal.tsx` still uses `splitList()` on three comma-separated `<input>` fields for `targetCompanies / keywords / locations`. The lowest-friction UX win is **location chips** because `locations` has a small, fixed vocabulary (Seattle, Portland, Bay Area, Remote).
 
 **How to do it:**
+
 1. Keep the existing comma-encoded API contract — the server stores locations as a `text[]` array, no schema change.
 2. Add a local `LOCATIONS = ['Seattle', 'Portland', 'Bay Area', 'Remote']` constant in `SettingsModal.tsx`.
 3. Render those as clickable pill toggles that add/remove entries from `draft.locations`, mirroring the `VisibilityToggle` pattern from `FilterBar.tsx`.
@@ -230,6 +235,7 @@ SCAN_SECRET=<random hex>           # same value in VITE_SCAN_SECRET
 ```
 
 Optional (scripters degrade gracefully when empty):
+
 ```
 ADZUNA_APP_ID / ADZUNA_API_KEY
 JSEARCH_RAPIDAPI_KEY

@@ -151,10 +151,7 @@ export function JobTable({
                       />
                     </div>
                   ) : (
-                    <StatusPicker
-                      value={undefined}
-                      onChange={(s) => handleStatusChange(job, s)}
-                    />
+                    <StatusPicker value={undefined} onChange={(s) => handleStatusChange(job, s)} />
                   )}
                 </td>
                 <td className="px-4 py-3">

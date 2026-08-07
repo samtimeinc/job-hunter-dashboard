@@ -43,10 +43,7 @@ export function StatsHeader({ stats, loading }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {cards.map((c) => (
-        <div
-          key={c.label}
-          className={`rounded-xl p-4 shadow-sm ring-1 ring-slate-200 ${c.tone}`}
-        >
+        <div key={c.label} className={`rounded-xl p-4 shadow-sm ring-1 ring-slate-200 ${c.tone}`}>
           <div className="text-2xl font-bold tabular-nums">{c.value}</div>
           <div className="mt-0.5 text-xs font-medium uppercase tracking-wide opacity-75">
             {c.label}

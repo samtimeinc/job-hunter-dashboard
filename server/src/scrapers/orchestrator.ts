@@ -23,9 +23,7 @@ export async function runScan(): Promise<ScanResult[]> {
   const { keywords, locations } = await getDashboardSettings();
 
   // Effective keywords: settings override; fall back to the project defaults.
-  const effectiveKeywords = keywords.length
-    ? keywords
-    : ['React', 'Node', 'TypeScript'];
+  const effectiveKeywords = keywords.length ? keywords : ['React', 'Node', 'TypeScript'];
   const effectiveLocations = locations.length ? locations : ['Seattle', 'Remote'];
 
   const results: ScraperResult[] = [];
@@ -41,11 +39,12 @@ export async function runScan(): Promise<ScanResult[]> {
   // and must run sequentially (each navigation reuses the same Chromium).
   type CompanyWithCareer = TargetCompany & { career: NonNullable<TargetCompany['career']> };
   const apiTargets = TARGET_COMPANIES.filter(
-    (c): c is CompanyWithCareer =>
-      c.career != null && c.career.type !== 'playwright',
+    (c): c is CompanyWithCareer => c.career != null && c.career.type !== 'playwright',
   );
   const playwrightTargets = TARGET_COMPANIES.filter(
-    (c): c is CompanyWithCareer & {
+    (
+      c,
+    ): c is CompanyWithCareer & {
       career: Extract<NonNullable<TargetCompany['career']>, { type: 'playwright' }>;
     } => c.career?.type === 'playwright',
   );
@@ -62,13 +61,7 @@ export async function runScan(): Promise<ScanResult[]> {
         case 'ashby':
           return scrapeAshby(career.slug, c.name, effectiveKeywords);
         case 'workday':
-          return scrapeWorkday(
-            career.host,
-            career.tenant,
-            career.site,
-            c.name,
-            effectiveKeywords,
-          );
+          return scrapeWorkday(career.host, career.tenant, career.site, c.name, effectiveKeywords);
         case 'github':
           // Single-tenant iCIMS board — no slug, always GitHub itself.
           return scrapeGitHub(c.name, effectiveKeywords);
@@ -83,9 +76,7 @@ export async function runScan(): Promise<ScanResult[]> {
   // Playwright (serial) — one shared browser instance
   for (const c of playwrightTargets) {
     const career = c.career;
-    results.push(
-      await scrapePlaywright(career.adapter, c.name, effectiveKeywords),
-    );
+    results.push(await scrapePlaywright(career.adapter, c.name, effectiveKeywords));
   }
 
   // --- Persist results into the DB ---
@@ -98,10 +89,7 @@ export async function runScan(): Promise<ScanResult[]> {
     for (const result of results) {
       for (const job of result.jobs) {
         if (!passesLocationFilter(job, effectiveLocations)) {
-          rejectedByLocation.set(
-            result.source,
-            (rejectedByLocation.get(result.source) ?? 0) + 1,
-          );
+          rejectedByLocation.set(result.source, (rejectedByLocation.get(result.source) ?? 0) + 1);
           continue;
         }
         const inserted = await upsertJob({
@@ -120,12 +108,16 @@ export async function runScan(): Promise<ScanResult[]> {
           postedAt: job.postedAt ?? null,
           tags: job.tags ?? [],
           isTargetCompany: isTargetCompany(job.company),
+          // Pass through the detail fields so they persist alongside the
+          // existing salary/location/source data. Sources that don't expose
+          // them leave these as null cleanly.
+          descriptionText: job.descriptionText ?? null,
+          descriptionHtml: job.descriptionHtml ?? null,
+          applyUrl: job.applyUrl ?? null,
+          companyDomain: job.companyDomain ?? null,
         });
         if (inserted) {
-          insertedBySource.set(
-            result.source,
-            (insertedBySource.get(result.source) ?? 0) + 1,
-          );
+          insertedBySource.set(result.source, (insertedBySource.get(result.source) ?? 0) + 1);
         }
       }
     }

@@ -26,10 +26,23 @@ interface GreenhouseBoard {
   jobs?: GreenhouseJob[];
 }
 
-/** Strip HTML tags so a work-mode regex hits plain text only. */
+/** Strip HTML tags so a work-mode regex hits plain text only. Also used to
+ *  derive `descriptionText` from the Greenhouse `content` HTML payload. */
 function stripTags(html: string | null | undefined): string {
   if (!html) return '';
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+  return (
+    html
+      .replace(/<[^>]*>/g, ' ')
+      // Decode common HTML entities so descriptions are readable.
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 export async function scrapeGreenhouse(
@@ -41,6 +54,10 @@ export async function scrapeGreenhouse(
   try {
     const data = await fetchJson<GreenhouseBoard>(
       `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs?content=true`,
+      {},
+      // Bump from the default 10s — big boards (Stripe ~500, Datadog ~300)
+      // intermittently exceed it and abort mid-fetch with 0 jobs.
+      25_000,
     );
     const jobs: RawJob[] = (data.jobs ?? [])
       .filter((j) => {
@@ -63,13 +80,17 @@ export async function scrapeGreenhouse(
         // the job is actually remote/hybrid, with that detail only mentioned
         // in the description body. Sniff title + description as a fallback.
         const locationName = j.location?.name ?? null;
+        const bodyText = stripTags(j.content);
         const seen = detectWorkMode(locationName);
         const workMode =
           seen !== 'unknown'
             ? seen
-            : detectWorkMode(
-                [j.title, stripTags(j.content)].filter(Boolean).join(' '),
-              );
+            : detectWorkMode([j.title, bodyText].filter(Boolean).join(' ').toLowerCase());
+        // Preserve the original HTML body verbatim and a cleaned plain-text
+        // variant. Both stay null when the board didn't request content
+        // (we always pass ?content=true, so it should generally be present).
+        const descriptionHtml = j.content?.trim() ? j.content.trim() : null;
+        const descriptionText = bodyText || null;
         return {
           source,
           externalId: String(j.id),
@@ -84,6 +105,8 @@ export async function scrapeGreenhouse(
             j.departments?.map((d) => d.name).filter(Boolean) ??
             j.metadata?.map((m) => m.value).filter(Boolean) ??
             [],
+          descriptionText,
+          descriptionHtml,
         };
       });
     return { source, jobs };

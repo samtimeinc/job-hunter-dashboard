@@ -18,9 +18,15 @@ export interface RawJob {
   postedAt?: Date | null;
   tags?: string[];
   /** Optional: direct application URL from source (e.g., iCIMS apply_url) */
-  applyUrl?: string;
+  applyUrl?: string | null;
   /** Optional: company domain for constructing likely URLs */
-  companyDomain?: string;
+  companyDomain?: string | null;
+  /** Optional: plain-text description as provided/normalised by the source.
+   *  Must only be set when the source genuinely returns description text —
+   *  never fabricate. */
+  descriptionText?: string | null;
+  /** Optional: original HTML description (Greenhouse `content`, Adzuna HTML). */
+  descriptionHtml?: string | null;
 }
 
 export interface ScraperResult {
@@ -122,7 +128,11 @@ export function passesLocationFilter(job: RawJob, allowed: string[]): boolean {
       }
     }
     if (lower === 'washington' || lower === 'wa') {
-      if (/\b(seattle|bellevue|redmond|kirkland|spokane|tacoma|olympia|everett|bellingham|renton|bothell|issaquah|vancouver)\b/.test(locationText)) {
+      if (
+        /\b(seattle|bellevue|redmond|kirkland|spokane|tacoma|olympia|everett|bellingham|renton|bothell|issaquah|vancouver)\b/.test(
+          locationText,
+        )
+      ) {
         return true;
       }
       // "WA" word-boundary match (catches "WA, USA" but not "Wall Street").

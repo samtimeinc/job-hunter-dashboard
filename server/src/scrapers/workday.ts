@@ -98,10 +98,17 @@ export async function scrapeWorkday(
         // "Apply link goes home" bug we fixed in Adzuna). Prepend /en-US/<site>
         // and the link lands on the real posting page.
         let url = '';
+        let applyUrl: string | null = null;
         if (p.externalUrl) {
           url = p.externalUrl;
         } else if (p.externalPath) {
           url = `${host}/en-US/${site}${p.externalPath}`;
+        }
+        // Workday sometimes exposes a standalone apply URL (e.g. an outbound
+        // redirect for partner tenants). Preserve it as metadata when present;
+        // the canonical /en-US/<site> deep-link stays the primary `url`.
+        if (p.externalUrl) {
+          applyUrl = p.externalUrl;
         }
         return {
           source,
@@ -113,6 +120,15 @@ export async function scrapeWorkday(
           location: p.locationsText ?? null,
           workMode: detectWorkMode([p.locationsText, p.description].join(' ')),
           postedAt: p.postedOn ? new Date(p.postedOn) : null,
+          // NOTE: Workday's /jobs (list) endpoint does NOT return a posting
+          // description body — only the per-job detail endpoint does. We
+          // deliberately leave descriptionText null here rather than making an
+          // extra HTTP round-trip per posting (which would multiply scan time
+          // and trip the tenant-specific latent bugs documented in repo memory).
+          // The detail GET would be added later if/when the scraper fetches
+          // full postings; for now absence is preserved honestly.
+          descriptionText: null,
+          applyUrl,
         };
       });
     return { source, jobs };

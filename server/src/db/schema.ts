@@ -62,6 +62,20 @@ export const jobs = pgTable(
     acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
     /** Set when the user manually hides a job — excluded from default views. */
     hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+    /** Plain-text job description as normalised by the scraper. Null when the
+     *  source exposes no description (Remotive, Workday list-endpoint, GitHub,
+     *  Playwright). Never fabricated. */
+    descriptionText: text('description_text'),
+    /** Original HTML description when the scraper received HTML (Greenhouse
+     *  `content`, Adzuna `description` if it ships HTML). Null otherwise. */
+    descriptionHtml: text('description_html'),
+    /** Direct application URL from the source (e.g. iCIMS `apply_url`, Ashby
+     *  `applyUrl`). Null when not provided. Distinct from the canonical `url`
+     *  which may point at a stable details page. */
+    applyUrl: text('apply_url'),
+    /** Normalised company domain (e.g. "stripe.com") used to reconstruct
+     *  careers links. Null when not derivable from the source payload. */
+    companyDomain: text('company_domain'),
   },
   (t) => ({
     uniqExternal: unique('jobs_external_unique').on(t.source, t.externalId),

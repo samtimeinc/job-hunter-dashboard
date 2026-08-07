@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type {
+  ApplicationStatus,
   CompanyScope,
   JobFilters,
   JobSource,
@@ -13,6 +14,12 @@ import { asyncHandler, HttpError } from './middleware.js';
 
 export const jobsRouter = Router();
 
+const VALID_STATUSES: ReadonlySet<ApplicationStatus> = new Set([
+  'to_apply',
+  'applied',
+  'interviewing',
+]);
+
 /** GET /api/jobs — list jobs with optional filters (query string). */
 jobsRouter.get(
   '/',
@@ -20,6 +27,7 @@ jobsRouter.get(
     const filters: JobFilters = {
       search: typeof req.query.search === 'string' ? req.query.search : undefined,
       sources: parseArray(req.query.sources) as JobSource[] | undefined,
+      statuses: parseStatuses(req.query.statuses),
       workModes: parseArray(req.query.workModes) as WorkMode[] | undefined,
       postedWithinDays: parseNumber(req.query.postedWithinDays),
       companyScope: parseCompanyScope(req.query.companyScope),
@@ -82,7 +90,11 @@ jobsRouter.get(
 function parseArray(value: unknown): string[] | undefined {
   if (!value) return undefined;
   if (Array.isArray(value)) return value.map(String);
-  if (typeof value === 'string') return value.split(',').map((s) => s.trim()).filter(Boolean);
+  if (typeof value === 'string')
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   return undefined;
 }
 
@@ -99,4 +111,15 @@ function parseCompanyScope(value: unknown): CompanyScope | undefined {
 function parseVisibility(value: unknown): Visibility | undefined {
   if (value === 'active' || value === 'hidden') return value;
   return undefined;
+}
+
+/** Parse comma-separated application statuses, e.g. "to_apply,applied".
+ *  Invalid tokens are dropped so an unknown value doesn't 500 the route. */
+function parseStatuses(value: unknown): ApplicationStatus[] | undefined {
+  const list = parseArray(value);
+  if (!list?.length) return undefined;
+  const filtered = list.filter((s): s is ApplicationStatus =>
+    VALID_STATUSES.has(s as ApplicationStatus),
+  );
+  return filtered.length ? filtered : undefined;
 }

@@ -72,7 +72,9 @@ export const googleAdapter: PlaywrightAdapter = {
         const jobTitleRegex =
           /(Software (Engineer|Developer|Architect|Lead|Manager))|(Frontend|Backend|Full[- ]?Stack|Infra|SRE|Site Reliability)/i;
 
-        const all = Array.from(document.querySelectorAll('h2, h3, [role="heading"]')) as HTMLElement[];
+        const all = Array.from(
+          document.querySelectorAll('h2, h3, [role="heading"]'),
+        ) as HTMLElement[];
         if (all.length) {
           // Fast path: typical heading-based cards.
           const out: { text: string }[] = [];
@@ -128,7 +130,8 @@ export const googleAdapter: PlaywrightAdapter = {
           companySlug: 'google',
           title,
           // Google portal rarely exposes per-job URLs; deep-link to the search.
-          url: 'https://www.google.com/about/careers/applications/jobs/results/?q=' +
+          url:
+            'https://www.google.com/about/careers/applications/jobs/results/?q=' +
             encodeURIComponent(title),
           location,
           workMode: /remote/i.test((location || '').toLowerCase()) ? 'remote' : 'onsite',

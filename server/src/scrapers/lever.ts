@@ -11,6 +11,8 @@ interface LeverPosting {
   id: string;
   text?: string;
   hostedUrl?: string;
+  /** Separate direct-apply link, when published. Distinct from hostedUrl. */
+  applyUrl?: string;
   /** Authoritative remote/hybrid/onsite tag — set by the employer in Lever.
    *  More reliable than `categories.location` for work mode (e.g. Relay's
    *  "Frontend Developer" posting has location "San Diego, CA" but
@@ -24,9 +26,27 @@ interface LeverPosting {
   };
   createdAt?: number;
   descriptionPlain?: string;
+  description?: string;
 }
 
 interface LeverResponse extends Array<LeverPosting> {}
+
+/** Cheap HTML → text for Lever's `description` HTML field (used only as a
+ *  fallback when `descriptionPlain` is absent). */
+function stripLeverHtml(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || null;
+}
 
 export async function scrapeLever(
   companySlug: string,
@@ -55,8 +75,7 @@ export async function scrapeLever(
         // Prefer Lever's structured `workplaceType` over heuristic detection
         // on the location string. detectWorkMode stays as the fallback for
         // any board that hasn't set the field (older postings, etc.).
-        const workMode: WorkMode =
-          p.workplaceType ?? detectWorkMode(p.categories?.location);
+        const workMode: WorkMode = p.workplaceType ?? detectWorkMode(p.categories?.location);
         return {
           source,
           externalId: p.id,
@@ -68,6 +87,14 @@ export async function scrapeLever(
           workMode,
           postedAt: p.createdAt ? new Date(p.createdAt) : null,
           tags: [p.categories?.team, p.categories?.department].filter(Boolean) as string[],
+          // Lever provides a plain-text description (`descriptionPlain`); some
+          // legacy postings also ship an HTML `description`. We keep the HTML
+          // only when `descriptionPlain` is absent — plain text is preferred
+          // for display and search.
+          descriptionText:
+            (p.descriptionPlain?.trim() || null) ?? (stripLeverHtml(p.description) || null),
+          descriptionHtml: p.description?.trim() ? p.description.trim() : null,
+          applyUrl: p.applyUrl ?? null,
         };
       });
     return { source, jobs };

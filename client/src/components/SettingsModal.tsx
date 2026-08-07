@@ -44,15 +44,11 @@ export function SettingsModal({ open, onClose }: Props) {
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="mb-4 text-lg font-semibold">Dashboard Settings</h2>
 
-        <label className="mb-1 block text-sm font-medium text-slate-700">
-          Target Companies
-        </label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Target Companies</label>
         <input
           className="input mb-4"
           value={draft.targetCompanies.join(', ')}
-          onChange={(e) =>
-            setDraft({ ...draft, targetCompanies: splitList(e.target.value) })
-          }
+          onChange={(e) => setDraft({ ...draft, targetCompanies: splitList(e.target.value) })}
           placeholder="Stripe, Slack, OpenAI, Smartsheet, Redfin"
         />
 

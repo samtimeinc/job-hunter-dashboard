@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { DashboardSettings } from '@jobhunt/shared';
 import { getDashboardSettings, setDashboardSettings } from '../db/queries/settings.js';
-import { asyncHandler } from './middleware.js';
+import { asyncHandler, requireDashboardWrite } from './middleware.js';
 
 export const settingsRouter = Router();
 
@@ -13,9 +13,14 @@ settingsRouter.get(
   }),
 );
 
-/** PUT /api/settings — replace settings. */
+/** PUT /api/settings — replace settings.
+ *
+ *  Protected when AGENT_API_KEY (or DASHBOARD_TOKEN) is configured; otherwise
+ *  preserves the existing single-user open behaviour so the dashboard UI keeps
+ *  working without changes. No secret is shipped to the client bundle. */
 settingsRouter.put(
   '/',
+  requireDashboardWrite,
   asyncHandler(async (req, res) => {
     const incoming = req.body ?? {};
     const settings: DashboardSettings = {

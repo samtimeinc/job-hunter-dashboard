@@ -27,15 +27,18 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   /** Optimistic status overrides keyed by jobId so the UI updates instantly. */
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, ApplicationStatus>>(
-    {},
-  );
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, ApplicationStatus>>({});
   /** Job IDs whose view membership changed after a hide/unhide click — removed
    *  locally so the row disappears immediately while the request is in flight. */
   const [hiddenOptimisticIds, setHiddenOptimisticIds] = useState<Set<string>>(new Set());
 
   const { stats, loading: statsLoading, refresh: refreshStats } = useStats();
-  const { data, loading, error, refresh: refreshJobs } = useJobs({
+  const {
+    data,
+    loading,
+    error,
+    refresh: refreshJobs,
+  } = useJobs({
     search: filters.search || undefined,
     sources: filters.sources.length ? filters.sources : undefined,
     workModes: filters.workModes.length ? filters.workModes : undefined,
@@ -117,19 +120,10 @@ export default function App() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setSettingsOpen(true)}
-            >
+            <button type="button" className="btn-secondary" onClick={() => setSettingsOpen(true)}>
               ⚙ Settings
             </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={triggerScan}
-              disabled={scanning}
-            >
+            <button type="button" className="btn-primary" onClick={triggerScan} disabled={scanning}>
               {scanning ? 'Scanning…' : '↻ Refresh now'}
             </button>
           </div>
@@ -138,9 +132,7 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
         {scanMessage && (
-          <div className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white">
-            {scanMessage}
-          </div>
+          <div className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white">{scanMessage}</div>
         )}
 
         <StatsHeader stats={stats} loading={statsLoading} />

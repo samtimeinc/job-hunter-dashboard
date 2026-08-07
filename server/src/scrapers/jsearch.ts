@@ -13,6 +13,7 @@ interface JSearchJob {
   job_id?: string;
   job_title?: string;
   employer_name?: string;
+  employer_website?: string;
   job_apply_link?: string;
   job_google_link?: string;
   job_city?: string;
@@ -40,6 +41,19 @@ function roundSalary(value: number | null | undefined): number | null {
   return Math.round(value);
 }
 
+/** Normalise a company website URL to a root domain (e.g. "stripe.com").
+ *  Returns null when nothing useful can be derived. */
+function deriveCompanyDomain(website: string | undefined): string | null {
+  if (!website) return null;
+  try {
+    const u = new URL(website);
+    const host = u.hostname.replace(/^www\./, '');
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function scrapeJSearch(keywords: string[]): Promise<ScraperResult> {
   const source: JobSource = 'jsearch';
   if (!config.keys.jsearchRapidApiKey) {
@@ -59,6 +73,11 @@ export async function scrapeJSearch(keywords: string[]): Promise<ScraperResult> 
     const jobs: RawJob[] = (data.data?.jobs ?? []).map((r) => {
       const loc = [r.job_city, r.job_state, r.job_country].filter(Boolean).join(', ');
       const period = r.job_salary_period === 'hourly' ? 'hour' : 'year';
+      const desc =
+        typeof r.job_description === 'string' && r.job_description.trim()
+          ? r.job_description.trim()
+          : null;
+      const domain = r.employer_website ? deriveCompanyDomain(r.employer_website) : null;
       return {
         source,
         externalId: r.job_id ?? r.job_google_link ?? '',
@@ -71,9 +90,12 @@ export async function scrapeJSearch(keywords: string[]): Promise<ScraperResult> 
         salaryMax: roundSalary(r.job_max_salary),
         salaryCurrency: r.job_salary_currency ?? null,
         salaryPeriod: period,
-        postedAt: r.job_posted_at_datetime_utc
-          ? new Date(r.job_posted_at_datetime_utc)
-          : null,
+        postedAt: r.job_posted_at_datetime_utc ? new Date(r.job_posted_at_datetime_utc) : null,
+        // Preserve the source description verbatim (plain text) and the
+        // apply link when it differs from the canonical url we picked above.
+        descriptionText: desc,
+        applyUrl: r.job_apply_link ? r.job_apply_link : null,
+        companyDomain: domain,
       };
     });
 

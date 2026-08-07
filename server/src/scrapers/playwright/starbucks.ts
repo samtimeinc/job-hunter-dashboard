@@ -52,14 +52,12 @@ export const starbucksAdapter: PlaywrightAdapter = {
       });
 
       await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 30_000 });
-      await page
-        .waitForSelector('a[href*="/job/"]', { timeout: 15_000 })
-        .catch(() => {});
+      await page.waitForSelector('a[href*="/job/"]', { timeout: 15_000 }).catch(() => {});
 
       const cards = await page.evaluate(() => {
-        const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(
-          'a[href*="/job/"]',
-        ));
+        const anchors = Array.from(
+          document.querySelectorAll<HTMLAnchorElement>('a[href*="/job/"]'),
+        );
         const seen = new Set<string>();
         const out: { href: string; text: string }[] = [];
         for (const a of anchors) {
@@ -86,7 +84,10 @@ export const starbucksAdapter: PlaywrightAdapter = {
       const jobs: RawJob[] = [];
       for (const card of cards) {
         // Best-effort parse. Starbucks cards commonly: "<Title>\n<location>\n<id>"
-        const lines = card.text.split(/\n| \| /).map((l) => l.trim()).filter(Boolean);
+        const lines = card.text
+          .split(/\n| \| /)
+          .map((l) => l.trim())
+          .filter(Boolean);
         const title = lines[0] ?? 'Untitled';
         const locationIdx = lines.findIndex((l, i) => i > 0 && /[A-Z][a-z]+,?\s+[A-Z]/.test(l));
         const location = locationIdx > 0 ? lines[locationIdx] : null;
@@ -99,9 +100,7 @@ export const starbucksAdapter: PlaywrightAdapter = {
           title,
           url: `https://careers.starbucks.com${card.href}`,
           location,
-          workMode: /remote/i.test((location || '').toLowerCase())
-            ? 'remote'
-            : 'onsite',
+          workMode: /remote/i.test((location || '').toLowerCase()) ? 'remote' : 'onsite',
           tags: [],
         });
         if (jobs.length >= limit) break;

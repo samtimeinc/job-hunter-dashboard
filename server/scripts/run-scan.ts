@@ -18,9 +18,7 @@ async function main(): Promise<void> {
   const results = await runScan();
   for (const r of results) {
     const err = r.errors.length ? `  errors: ${r.errors.map((e) => e.message).join('; ')}` : '';
-    console.log(
-      `[scan] ${r.source}: fetched ${r.fetched}, inserted ${r.inserted}${err}`,
-    );
+    console.log(`[scan] ${r.source}: fetched ${r.fetched}, inserted ${r.inserted}${err}`);
   }
   console.log(`[scan] finished at ${new Date().toISOString()}`);
 }

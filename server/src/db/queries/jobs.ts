@@ -1,5 +1,12 @@
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
-import type { Job, JobFilters, JobListResponse, JobSource, WorkMode } from '@jobhunt/shared';
+import type {
+  ApplicationStatus,
+  Job,
+  JobFilters,
+  JobListResponse,
+  JobSource,
+  WorkMode,
+} from '@jobhunt/shared';
 import { db, schema } from '../client.js';
 import { newId } from './helpers.js';
 
@@ -22,10 +29,7 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
   if (filters.search) {
     const like = `%${filters.search}%`;
     conditions.push(
-      or(
-        sql`${schema.jobs.title} ILIKE ${like}`,
-        sql`${schema.jobs.company} ILIKE ${like}`,
-      )!,
+      or(sql`${schema.jobs.title} ILIKE ${like}`, sql`${schema.jobs.company} ILIKE ${like}`)!,
     );
   }
   if (filters.sources?.length) {
@@ -45,6 +49,38 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
     // posted_at may be null for sources without it; treat null as "recent enough"
     conditions.push(or(isNull(schema.jobs.postedAt), gte(schema.jobs.postedAt, cutoff))!);
   }
+  if (filters.statuses?.length) {
+    // Tracker status filter. A job only has a tracker row when the user has
+    // touched it (status defaults to 'to_apply' once set, but bare jobs have
+    // no tracker at all). Two sensible modes:
+    //   • statuses includes 'to_apply' → also surface untouched jobs
+    //   • statuses excludes 'to_apply' → only jobs with an explicit tracker
+    const includeUntouched = filters.statuses.includes('to_apply');
+    const explicitStatuses = filters.statuses.filter((s) => s !== 'to_apply');
+    if (includeUntouched && explicitStatuses.length === 0) {
+      // Either no tracker, or tracker status is 'to_apply'. Logically the
+      // default state of every job is "to apply", so this is a no-op beyond
+      // excluding statuses != 'to_apply' on tracked rows.
+      conditions.push(
+        or(
+          isNull(schema.applicationTrackers.jobId),
+          eq(schema.applicationTrackers.status, 'to_apply'),
+        )!,
+      );
+    } else if (includeUntouched && explicitStatuses.length > 0) {
+      conditions.push(
+        or(
+          isNull(schema.applicationTrackers.jobId),
+          inArray(schema.applicationTrackers.status, filters.statuses as ApplicationStatus[]),
+        )!,
+      );
+    } else {
+      // Only tracked jobs whose status is in the requested set.
+      conditions.push(
+        inArray(schema.applicationTrackers.status, explicitStatuses as ApplicationStatus[]),
+      );
+    }
+  }
 
   const where = and(...conditions);
 
@@ -54,6 +90,20 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
   const page = Math.max(1, filters.page ?? 1);
   const offset = (page - 1) * requestedLimit;
 
+  const hasStatusFilter = Boolean(filters.statuses?.length);
+  // Build the count query with the same join as the list query when the filter
+  // references tracker columns; otherwise count jobs directly (cheaper).
+  const countQuery = hasStatusFilter
+    ? db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.jobs)
+        .leftJoin(schema.applicationTrackers, eq(schema.applicationTrackers.jobId, schema.jobs.id))
+        .where(where)
+    : db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.jobs)
+        .where(where);
+
   const [rows, [totalRow], [newCount]] = await Promise.all([
     db
       .select({
@@ -61,10 +111,7 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
         tracker: schema.applicationTrackers,
       })
       .from(schema.jobs)
-      .leftJoin(
-        schema.applicationTrackers,
-        eq(schema.applicationTrackers.jobId, schema.jobs.id),
-      )
+      .leftJoin(schema.applicationTrackers, eq(schema.applicationTrackers.jobId, schema.jobs.id))
       .where(where)
       .orderBy(
         // Unacknowledged jobs first (the "new" badge), then newest postings
@@ -74,10 +121,7 @@ export async function listJobs(filters: JobFilters = {}): Promise<JobListRespons
       )
       .limit(requestedLimit)
       .offset(offset),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.jobs)
-      .where(where),
+    countQuery,
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.jobs)
@@ -118,19 +162,13 @@ export async function acknowledgeAll(): Promise<{ acknowledgedAt: string }> {
 /** Hide a job — sets hiddenAt, removing it from default views. */
 export async function hideJob(jobId: string): Promise<{ hiddenAt: string | null }> {
   const now = new Date();
-  await db
-    .update(schema.jobs)
-    .set({ hiddenAt: now })
-    .where(eq(schema.jobs.id, jobId));
+  await db.update(schema.jobs).set({ hiddenAt: now }).where(eq(schema.jobs.id, jobId));
   return { hiddenAt: now.toISOString() };
 }
 
 /** Restore a hidden job — clears hiddenAt. */
 export async function unhideJob(jobId: string): Promise<{ hiddenAt: string | null }> {
-  await db
-    .update(schema.jobs)
-    .set({ hiddenAt: null })
-    .where(eq(schema.jobs.id, jobId));
+  await db.update(schema.jobs).set({ hiddenAt: null }).where(eq(schema.jobs.id, jobId));
   return { hiddenAt: null };
 }
 
@@ -152,6 +190,10 @@ export interface UpsertJobInput {
   postedAt?: Date | null;
   tags?: string[];
   isTargetCompany: boolean;
+  descriptionText?: string | null;
+  descriptionHtml?: string | null;
+  applyUrl?: string | null;
+  companyDomain?: string | null;
 }
 
 /** Idempotent insert used by scanners.
@@ -161,9 +203,7 @@ export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
   const existing = await db
     .select({ id: schema.jobs.id, active: schema.jobs.active })
     .from(schema.jobs)
-    .where(
-      and(eq(schema.jobs.source, input.source), eq(schema.jobs.externalId, input.externalId)),
-    )
+    .where(and(eq(schema.jobs.source, input.source), eq(schema.jobs.externalId, input.externalId)))
     .limit(1);
 
   if (existing.length) {
@@ -181,6 +221,13 @@ export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
         salaryCurrency: input.salaryCurrency ?? null,
         salaryPeriod: input.salaryPeriod ?? null,
         postedAt: input.postedAt ?? null,
+        // Refresh detail fields on every scan so corrections from the source
+        // propagate. Sources that don't provide a field write null, which
+        // keeps us honest about "we don't have it".
+        descriptionText: input.descriptionText ?? null,
+        descriptionHtml: input.descriptionHtml ?? null,
+        applyUrl: input.applyUrl ?? null,
+        companyDomain: input.companyDomain ?? null,
       })
       .where(eq(schema.jobs.id, existing[0]!.id));
     return false;
@@ -204,6 +251,10 @@ export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
     tags: input.tags ?? [],
     isTargetCompany: input.isTargetCompany,
     active: true,
+    descriptionText: input.descriptionText ?? null,
+    descriptionHtml: input.descriptionHtml ?? null,
+    applyUrl: input.applyUrl ?? null,
+    companyDomain: input.companyDomain ?? null,
   });
   return true;
 }
@@ -235,6 +286,12 @@ function serializeJob(
     isTargetCompany: row.isTargetCompany,
     acknowledgedAt: row.acknowledgedAt ? row.acknowledgedAt.toISOString() : null,
     hiddenAt: row.hiddenAt ? row.hiddenAt.toISOString() : null,
+    // Detail fields — nullable; remaining null until the source provides them.
+    descriptionText: row.descriptionText ?? null,
+    descriptionHtml: row.descriptionHtml ?? null,
+    applyUrl: row.applyUrl ?? null,
+    companyDomain: row.companyDomain ?? null,
+    active: row.active,
     tracker: tracker
       ? {
           id: tracker.id,

@@ -61,9 +61,9 @@ export const microsoftAdapter: PlaywrightAdapter = {
         .catch(() => {});
 
       const cards = await page.evaluate(() => {
-        const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(
-          'a[href*="/v2/global/en/job/"]',
-        ));
+        const anchors = Array.from(
+          document.querySelectorAll<HTMLAnchorElement>('a[href*="/v2/global/en/job/"]'),
+        );
         const seen = new Set<string>();
         const out: { href: string; text: string }[] = [];
         for (const a of anchors) {
@@ -89,7 +89,10 @@ export const microsoftAdapter: PlaywrightAdapter = {
       const jobs: RawJob[] = [];
       for (const card of cards) {
         // Microsoft card text is "Title\nLocation\nDate\n…". Split cleanly.
-        const lines = card.text.split('\n').map((l) => l.trim()).filter(Boolean);
+        const lines = card.text
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean);
         const title = lines[0] ?? 'Untitled';
         const location = lines.find((l, i) => i > 0 && /[A-Z][a-z]/.test(l));
         if (!matchesAny(title, keywords)) continue;
@@ -105,9 +108,7 @@ export const microsoftAdapter: PlaywrightAdapter = {
             ? card.href
             : `https://careers.microsoft.com${card.href}`,
           location: location ?? null,
-          workMode: /remote/i.test((location || '').toLowerCase())
-            ? 'remote'
-            : 'onsite',
+          workMode: /remote/i.test((location || '').toLowerCase()) ? 'remote' : 'onsite',
           tags: [],
         });
         if (jobs.length >= limit) break;

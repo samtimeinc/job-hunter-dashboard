@@ -44,9 +44,7 @@ function roundSalary(value: number | null | undefined): number | null {
  *
  * Returns the first plausible URL or null if none found.
  */
-function extractApplyUrlFromDescription(
-  html: string | undefined,
-): string | null {
+function extractApplyUrlFromDescription(html: string | undefined): string | null {
   if (!html) return null;
   const urlRegex = /https?:\/\/[^\s"'<>()]+/gi;
   const matches = html.match(urlRegex) ?? [];
@@ -145,10 +143,7 @@ function buildJobUrl(
   if (job.id) return `https://www.adzuna.com/details/${job.id}`;
 
   // 2 / 3. No id? Fall back to the company website, then a name-derived domain.
-  const domain = deriveCompanyDomain(
-    job.company?.website_url,
-    job.company?.display_name,
-  );
+  const domain = deriveCompanyDomain(job.company?.website_url, job.company?.display_name);
   if (domain) return `https://${domain}`;
 
   // 4. No company info? Try extracting an apply URL from the description.
@@ -172,9 +167,7 @@ export async function scrapeAdzuna(
   // parallel and dedupe by job id afterwards. Skip "Remote" / "United States"
   // — Adzuna's `where` is geo-only; remote roles surface via the keyword.
   const geoLocations =
-    locations.length > 0
-      ? locations.filter((l) => !/^remote|united states|usa$/i.test(l))
-      : [];
+    locations.length > 0 ? locations.filter((l) => !/^remote|united states|usa$/i.test(l)) : [];
 
   try {
     const queries = geoLocations.length ? geoLocations : [''];
@@ -226,9 +219,12 @@ export async function scrapeAdzuna(
           // often expires but costs nothing to store.
           applyUrl: r.redirect_url || r.url || undefined,
           location: r.location?.display_name ?? null,
-          workMode: detectWorkMode(
-            [r.description, r.location?.area?.join(', ')].join(' '),
-          ),
+          workMode: detectWorkMode([r.description, r.location?.area?.join(', ')].join(' ')),
+          // Adzuna returns plain-text descriptions — preserve them verbatim so
+          // downstream consumers (agent API) get the full posting without an
+          // extra HTTP round-trip. Null when the source omitted the field.
+          descriptionText:
+            typeof r.description === 'string' && r.description.trim() ? r.description.trim() : null,
           // Adzuna returns floats ($96330.49); round to whole dollars
           // to match the integer column type.
           salaryMin: roundSalary(r.salary_min),
@@ -240,10 +236,7 @@ export async function scrapeAdzuna(
           // can construct /careers links in the UI if the main url falls back
           // to a search page.
           companyDomain:
-            deriveCompanyDomain(
-              r.company?.website_url,
-              r.company?.display_name,
-            ) ?? undefined,
+            deriveCompanyDomain(r.company?.website_url, r.company?.display_name) ?? undefined,
         });
       }
     }

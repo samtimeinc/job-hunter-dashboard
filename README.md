@@ -33,8 +33,8 @@ and three free-aggregator APIs.
 
 ## 🧱 Tech Stack
 
-| Layer    | Choice                                                                                |
-| -------- | ------------------------------------------------------------------------------------- |
+| Layer    | Choice                                                                                 |
+| -------- | -------------------------------------------------------------------------------------- |
 | DB       | PostgreSQL on **Neon** + **Drizzle ORM** (migrations auto-generated — never hand-edit) |
 | Backend  | **Express** + TypeScript, routes in `src/api/`, queries in `src/db/queries/`           |
 | Frontend | **Vite** + React + TypeScript + **Tailwind** (functional components only)              |
@@ -99,17 +99,17 @@ jobhunt-dashboard/
 
 ## 🔁 Common commands
 
-| Command                     | Description                                                            |
-| --------------------------- | ---------------------------------------------------------------------- |
-| `npm run dev`               | Start Express + Vite together                                          |
-| `npm run dev:server`        | Express only on `:3001`                                                |
-| `npm run dev:client`        | Vite only                                                              |
-| `npm run typecheck`         | Typecheck all three workspaces                                         |
-| `npm run build`             | Emit `server/dist` + `client/dist`                                     |
-| `npm run scan`              | One-off scan, prints per-source stats                                  |
-| `npm run prune:locations`   | Delete DB rows that fail the current location filter (idempotent)      |
-| `npm run db:push`           | Apply schema changes to Neon                                           |
-| `npm run db:studio`         | Open Drizzle Studio UI                                                 |
+| Command                   | Description                                                       |
+| ------------------------- | ----------------------------------------------------------------- |
+| `npm run dev`             | Start Express + Vite together                                     |
+| `npm run dev:server`      | Express only on `:3001`                                           |
+| `npm run dev:client`      | Vite only                                                         |
+| `npm run typecheck`       | Typecheck all three workspaces                                    |
+| `npm run build`           | Emit `server/dist` + `client/dist`                                |
+| `npm run scan`            | One-off scan, prints per-source stats                             |
+| `npm run prune:locations` | Delete DB rows that fail the current location filter (idempotent) |
+| `npm run db:push`         | Apply schema changes to Neon                                      |
+| `npm run db:studio`       | Open Drizzle Studio UI                                            |
 
 ---
 
@@ -120,13 +120,13 @@ Twelve direct-scraped companies + three badge-only entries. Edit
 remove. The file's top comment has a step-by-step "HOW TO ADD A COMPANY"
 recipe plus TEMPLATE_* blocks at the bottom for each ATS type.
 
-| ATS | Companies                                                            |
-| --- | ------------------------------------------------------------------- |
-| Greenhouse | Stripe, Smartsheet, Anthropic, Airtable, Figma, Datadog, Discord, Robinhood |
-| Ashby | OpenAI, Vercel, Linear, Notion, Scribd |
-| Playwright | Amazon (verified) · Microsoft / Starbucks / Google (unverified stubs) |
-| Badge-only | Microsoft, Starbucks, Google, Plaid (matched against aggregators by name) |
-| Deprioritised | Slack (absorbed into Salesforce), Redfin (acquired by Rocket) |
+| ATS           | Companies                                                                   |
+| ------------- | --------------------------------------------------------------------------- |
+| Greenhouse    | Stripe, Smartsheet, Anthropic, Airtable, Figma, Datadog, Discord, Robinhood |
+| Ashby         | OpenAI, Vercel, Linear, Notion, Scribd                                      |
+| Playwright    | Amazon (verified) · Microsoft / Starbucks / Google (unverified stubs)       |
+| Badge-only    | Microsoft, Starbucks, Google, Plaid (matched against aggregators by name)   |
+| Deprioritised | Slack (absorbed into Salesforce), Redfin (acquired by Rocket)               |
 
 **Badge-only** entries get the ★ Watchlist chip in the UI when an aggregator
 (Adzuna / JSearch / Remotive) returns a role whose company name matches — no
@@ -178,6 +178,7 @@ See [`.env.example`](.env.example) for the full list. Minimum to boot:
 
 - `DATABASE_URL`
 - `SCAN_SECRET`
+- `AGENT_API_KEY` (only required for the `/api/agent` surface; otherwise it 503s)
 
 Optional (scrapers degrade gracefully when empty):
 
@@ -185,12 +186,166 @@ Optional (scrapers degrade gracefully when empty):
 - `JSEARCH_RAPIDAPI_KEY`
 
 **Never commit `.env`** (it's in `.gitignore`). For Vercel, set
-`DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`), and any
-aggregator keys in Vercel project settings.
+`DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`),
+`AGENT_API_KEY`, and any aggregator keys in Vercel project settings. **Do not
+define `VITE_AGENT_API_KEY`** — any `VITE_*` var is baked into the client
+bundle.
 
 ---
 
-## 🧩 Notes & design decisions
+## � Agent API
+
+A secure, machine-to-machine surface at `/api/agent` for an external
+job-application workflow. **Authenticated, read-mostly, and intentionally does
+not submit applications.**
+
+### Setup
+
+```bash
+# Single command to create the schema + agent-readable job columns:
+npm run db:push
+
+# Add a server-only secret to .env (and to Vercel project env for prod):
+AGENT_API_KEY=node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+```
+
+> ⚠️ **Never** expose the agent secret as `VITE_AGENT_API_KEY` — Vite inlines
+> `VITE_*` vars into the browser bundle. `AGENT_API_KEY` is **server-only**.
+
+### Authentication
+
+Every `/api/agent/*` route requires `AGENT_API_KEY`. Send it via either header:
+
+```
+Authorization: Bearer $AGENT_API_KEY
+X-Agent-Key: $AGENT_API_KEY
+```
+
+Missing or wrong → `401`. Not configured on the server → `503` (fail-closed).
+
+### Routes
+
+| Method | Path                          | Purpose                                                         |
+| ------ | ----------------------------- | --------------------------------------------------------------- |
+| `GET`  | `/api/agent`                  | Capability summary                                              |
+| `GET`  | `/api/agent/openapi.json`     | OpenAPI 3.0 document (also checked in at `openapi/agent.yaml`)  |
+| `GET`  | `/api/agent/jobs`             | Cursor-paginated search; remember `nextCursor`                  |
+| `GET`  | `/api/agent/jobs/:id`         | Full record incl. `descriptionText`, `descriptionHtml`, tracker |
+| `POST` | `/api/agent/jobs/:id/tracker` | Update application tracker; returns the updated record          |
+
+### Filter the worklist
+
+To retrieve every job currently marked `to_apply` (including ones the dashboard
+hasn't touched yet):
+
+```bash
+curl -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://YOUR_DOMAIN/api/agent/jobs?statuses=to_apply&limit=50&includeDescription=true"
+```
+
+### Fetch one job
+
+```bash
+curl -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://YOUR_DOMAIN/api/agent/jobs/JOB_ID"
+```
+
+### Update application status
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"applied","appliedAt":"2026-08-06T20:00:00Z","notes":"Submitted manually"}' \
+  "https://YOUR_DOMAIN/api/agent/jobs/JOB_ID/tracker"
+```
+
+### Example response payload
+
+```json
+{
+  "jobs": [
+    {
+      "id": "1ef3...",
+      "externalId": "gh-42",
+      "source": "greenhouse",
+      "company": "Stripe",
+      "companySlug": "stripe",
+      "title": "Senior Software Engineer",
+      "url": "https://boards.greenhouse.io/stripe/jobs/42",
+      "applyUrl": null,
+      "companyDomain": "stripe.com",
+      "location": "Seattle, WA",
+      "workMode": "remote",
+      "salaryMin": 180000,
+      "salaryMax": 240000,
+      "salaryCurrency": "USD",
+      "salaryPeriod": "year",
+      "postedAt": "2026-08-01T00:00:00.000Z",
+      "firstSeenAt": "2026-08-02T00:00:00.000Z",
+      "lastSeenAt": "2026-08-05T00:00:00.000Z",
+      "active": true,
+      "tags": ["Engineering"],
+      "isTargetCompany": true,
+      "descriptionText": "We're hiring senior engineers to build…",
+      "descriptionHtml": "<p>We're hiring senior engineers…</p>",
+      "tracker": {
+        "status": "to_apply",
+        "appliedAt": null,
+        "notes": null,
+        "updatedAt": "2026-08-05T00:00:00.000Z"
+      }
+    }
+  ],
+  "total": 1,
+  "nextCursor": "eyJ0IjoiMjAyNi0"
+}
+```
+
+### Description sources & gaps
+
+`descriptionText` / `descriptionHtml` are populated where the upstream source
+exposes them; **never fabricated**. Current coverage:
+
+| Source              | descriptionText                          | descriptionHtml           |
+| ------------------- | ---------------------------------------- | ------------------------- |
+| Greenhouse          | ✅ cleaned from `content`                | ✅ original HTML          |
+| Adzuna              | ✅ `description` (text)                  | — (text-only source)      |
+| JSearch             | ✅ `job_description`                     | —                         |
+| Lever               | ✅ `descriptionPlain` (or stripped HTML) | ✅ original `description` |
+| Ashby               | ✅ `descriptionPlain`                    | —                         |
+| Remotive            | ❌ (API provides no description field)   | ❌                        |
+| Workday             | ❌ (list endpoint returns no body)       | ❌                        |
+| GitHub (iCIMS)      | ❌ (HTML is noisy boilerplate)           | ❌                        |
+| Playwright adapters | ❌ (not extracted)                       | ❌                        |
+
+### Optional MCP adapter
+
+A Model Context Protocol server is included for local agent hosts (e.g. Claude
+Desktop). It exposes three tools — `search_jobs`, `get_job`,
+`update_application_status` — that call the **same internal query layer** as the
+REST routes (no duplicated DB logic).
+
+```bash
+# From dev:
+npm run mcp            # runs server/src/agent/mcp-server.ts via tsx
+# After a production build:
+npm run build -w server && npm run start:mcp
+```
+
+The MCP server is a **stdio process**, not mounted on Express — it doesn't fit
+Vercel's request/response model. Remote agents must use the REST API above; the
+MCP adapter is for trusted local hosts.
+
+### ⚠️ Application submission
+
+**Application submission must remain human-approved.** This surface lets an
+agent search, read, rank, and update tracker status — never submit. The actual
+"apply" action is always a click on `url` / `applyUrl` by a real person.
+
+---
+
+## �🧩 Notes & design decisions
 
 - **No LinkedIn/Indeed direct scraping** — those violate ToS and get
   IP-blocked fast. JSearch via RapidAPI is a sanctioned aggregator that
