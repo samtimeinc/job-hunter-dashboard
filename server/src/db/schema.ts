@@ -27,6 +27,7 @@ export type JobSource =
   | 'remotive'
   | 'adzuna'
   | 'jsearch'
+  | 'dice'
   | 'greenhouse'
   | 'lever'
   | 'ashby'

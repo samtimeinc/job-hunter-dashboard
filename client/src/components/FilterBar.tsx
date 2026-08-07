@@ -20,6 +20,7 @@ const SOURCE_OPTIONS: { value: JobSource; label: string }[] = [
   { value: 'remotive', label: 'Remotive' },
   { value: 'adzuna', label: 'Adzuna' },
   { value: 'jsearch', label: 'JSearch' },
+  { value: 'dice', label: 'Dice' },
   { value: 'greenhouse', label: 'Greenhouse' },
   { value: 'lever', label: 'Lever' },
   { value: 'ashby', label: 'Ashby' },

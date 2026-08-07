@@ -4,6 +4,7 @@ import { getDashboardSettings } from '../db/queries/settings.js';
 import { isTargetCompany, TARGET_COMPANIES, type TargetCompany } from './targets.js';
 import { scrapeAdzuna } from './adzuna.js';
 import { scrapeAshby } from './ashby.js';
+import { scrapeDice } from './dice.js';
 import { scrapeGreenhouse } from './greenhouse.js';
 import { scrapeJSearch } from './jsearch.js';
 import { scrapeLever } from './lever.js';
@@ -32,6 +33,7 @@ export async function runScan(): Promise<ScanResult[]> {
   results.push(await scrapeRemotive(effectiveKeywords));
   results.push(await scrapeAdzuna(effectiveKeywords, effectiveLocations));
   results.push(await scrapeJSearch(effectiveKeywords));
+  results.push(await scrapeDice(effectiveKeywords));
 
   // --------- Direct career-page fetchers ---------
   // Split into two groups: API-based scrapers run in parallel (fast), while
@@ -73,10 +75,28 @@ export async function runScan(): Promise<ScanResult[]> {
   );
   results.push(...careerResults);
 
-  // Playwright (serial) — one shared browser instance
-  for (const c of playwrightTargets) {
-    const career = c.career;
-    results.push(await scrapePlaywright(career.adapter, c.name, effectiveKeywords));
+  // Playwright (serial) — one shared browser instance.
+  // SKIPPED on Vercel serverless: the runtime has no writable/persistent
+  // filesystem to hold the Chromium binary (`npx playwright install` can't
+  // run, and bundling the ~300MB binary exceeds the serverless limits).
+  // Enterprise portals (Amazon/Google/Microsoft/Starbucks) are scraped only
+  // by the local `npm run scan` script in this path. On Vercel the same
+  // companies are still surfaced via their ATS-API sourced rows where one
+  // exists.
+  const skipPlaywright = process.env.SKIP_PLAYWRIGHT === '1' || Boolean(process.env.VERCEL);
+  if (skipPlaywright) {
+    for (const c of playwrightTargets) {
+      results.push({
+        source: 'playwright',
+        jobs: [],
+        error: 'playwright source skipped (no browser binary available in serverless runtime)',
+      });
+    }
+  } else {
+    for (const c of playwrightTargets) {
+      const career = c.career;
+      results.push(await scrapePlaywright(career.adapter, c.name, effectiveKeywords));
+    }
   }
 
   // --- Persist results into the DB ---

@@ -37,5 +37,9 @@ export const config = {
     adzunaAppId: process.env.ADZUNA_APP_ID ?? '',
     adzunaApiKey: process.env.ADZUNA_API_KEY ?? '',
     jsearchRapidApiKey: process.env.JSEARCH_RAPIDAPI_KEY ?? '',
+    /** Dice Talent Search API uses OAuth2 client-credentials. Both are issued
+     *  from the Dice developer portal (developer.dice.com). */
+    diceClientId: process.env.DICE_CLIENT_ID ?? '',
+    diceClientSecret: process.env.DICE_CLIENT_SECRET ?? '',
   },
 } as const;

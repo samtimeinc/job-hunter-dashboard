@@ -14,6 +14,8 @@ and three free-aggregator APIs.
   - **Adzuna** — has salary data (free API key)
   - **JSearch** via RapidAPI — surfaces LinkedIn-sourced roles without
     scraping LinkedIn directly
+  - **Dice** — OAuth2 client-credentials aggregator with strong FAANG
+    coverage (Amazon/Microsoft/Google/Starbucks)
   - **Greenhouse**, **Ashby**, **Lever**, **Workday** — direct career-page
     fetchers for target companies
   - **Playwright** — headless-Chromium scraper for in-house portals
@@ -184,6 +186,7 @@ Optional (scrapers degrade gracefully when empty):
 
 - `ADZUNA_APP_ID` + `ADZUNA_API_KEY`
 - `JSEARCH_RAPIDAPI_KEY`
+- `DICE_CLIENT_ID` + `DICE_CLIENT_SECRET`
 
 **Never commit `.env`** (it's in `.gitignore`). For Vercel, set
 `DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`),

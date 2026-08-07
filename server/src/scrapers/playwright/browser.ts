@@ -21,13 +21,22 @@ export async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
-/** Close the shared browser after the scan completes. Safe to call repeatedly. */
+/** Close the shared browser after the scan completes. Safe to call repeatedly.
+ *
+ *  CRITICAL: must never throw, even if `chromium.launch()` rejected (e.g. no
+ *  browser binary on a serverless runtime). This is always invoked from the
+ *  orchestrator's `finally` block — if it re-threw the rejected launch
+ *  promise, the entire scan would 500 even though every per-company scraper
+ *  already caught its own failure. */
 export async function closeBrowser(): Promise<void> {
   if (!browserPromise) return;
+  const promise = browserPromise;
+  browserPromise = null;
   try {
-    const browser = await browserPromise;
+    const browser = await promise;
     await browser.close();
-  } finally {
-    browserPromise = null;
+  } catch {
+    // Launch failed — nothing to close. The error was already surfaced by
+    // the individual adapter via scrapePlaywright's try/catch.
   }
 }
