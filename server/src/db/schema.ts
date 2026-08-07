@@ -28,6 +28,7 @@ export type JobSource =
   | 'adzuna'
   | 'jsearch'
   | 'dice'
+  | 'hackernews'
   | 'greenhouse'
   | 'lever'
   | 'ashby'

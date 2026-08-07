@@ -16,6 +16,9 @@ and three free-aggregator APIs.
     scraping LinkedIn directly
   - **Dice** — OAuth2 client-credentials aggregator with strong FAANG
     coverage (Amazon/Microsoft/Google/Starbucks)
+  - **Hacker News "Who is hiring?"** — monthly YC-startup megathread; no
+    API key needed; rich with seed-to-Series-B companies that rarely
+    appear on commercial aggregators
   - **Greenhouse**, **Ashby**, **Lever**, **Workday** — direct career-page
     fetchers for target companies
   - **Playwright** — headless-Chromium scraper for in-house portals
