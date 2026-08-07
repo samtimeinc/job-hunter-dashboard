@@ -54,7 +54,7 @@ schemas:
       externalId: { type: string, description: Source-specific id used for dedup. }
       source:
         type: string
-        enum: [remotive, adzuna, jsearch, greenhouse, lever, ashby, playwright, workday, github]
+        enum: [remotive, adzuna, jsearch, greenhouse, lever, ashby, playwright, workday]
       company: { type: string }
       companySlug: { type: string, nullable: true }
       title: { type: string }
@@ -87,9 +87,8 @@ schemas:
         nullable: true
         description: >
           Plain-text job body normalised by the scraper. Null when the source
-          exposes no description (Remotive, Workday list endpoint, GitHub
-          iCIMS, Playwright). Always null on the search list unless
-          includeDescription=true.
+          exposes no description (Remotive, Workday list endpoint, Playwright).
+          Always null on the search list unless includeDescription=true.
       descriptionHtml:
         type: string
         nullable: true

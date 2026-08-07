@@ -42,7 +42,6 @@ const SOURCE_ENUM = z.enum([
   'ashby',
   'playwright',
   'workday',
-  'github',
 ]);
 const WORK_MODE_ENUM = z.enum(['remote', 'hybrid', 'onsite', 'unknown']);
 

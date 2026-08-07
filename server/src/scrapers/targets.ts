@@ -39,10 +39,7 @@ export interface TargetCompany {
     | { type: 'ashby'; slug: string }
     | { type: 'workday'; host: string; tenant: string; site: string }
     /** In-house portal scraped via a headless browser. */
-    | { type: 'playwright'; adapter: PlaywrightAdapter }
-    /** GitHub's iCIMS-backed JSON API at github.careers/api/jobs — single-tenant,
-     *  so no slug needed. See server/src/scrapers/github.ts. */
-    | { type: 'github' };
+    | { type: 'playwright'; adapter: PlaywrightAdapter };
 }
 
 /**
@@ -266,11 +263,6 @@ export const TARGET_COMPANIES: TargetCompany[] = [
     matchNames: ['amazon', 'aws', 'amazon web services'],
     career: { type: 'playwright', adapter: 'amazon' },
   },
-
-  // GitHub careers uses iCIMS with a clean JSON API at github.careers/api/jobs.
-  // Verified live 2026-08-04: 74 postings, every field populated consistently.
-  // See server/src/scrapers/github.ts (NOT a Playwright target — pure HTTP).
-  { name: 'GitHub', matchNames: ['github', 'github inc', 'githubinc'], career: { type: 'github' } },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Badge-only (matched against Adzuna / JSearch / Remotive results by name)

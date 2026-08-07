@@ -61,7 +61,6 @@ const JOB_SCHEMA = {
         'ashby',
         'playwright',
         'workday',
-        'github',
       ],
     },
     company: { type: 'string' },
@@ -104,7 +103,7 @@ const JOB_SCHEMA = {
       type: 'string',
       nullable: true,
       description:
-        'Plain-text job body normalised by the scraper. Null when the source exposes no description (Remotive, Workday list endpoint, GitHub iCIMS, Playwright). Always null on the search list unless includeDescription=true.',
+        'Plain-text job body normalised by the scraper. Null when the source exposes no description (Remotive, Workday list endpoint, Playwright). Always null on the search list unless includeDescription=true.',
     },
     descriptionHtml: {
       type: 'string',

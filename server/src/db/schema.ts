@@ -27,7 +27,6 @@ export type JobSource =
   | 'remotive'
   | 'adzuna'
   | 'jsearch'
-  | 'dice'
   | 'hackernews'
   | 'themuse'
   | 'usajobs'
@@ -35,8 +34,7 @@ export type JobSource =
   | 'lever'
   | 'ashby'
   | 'playwright'
-  | 'workday'
-  | 'github';
+  | 'workday';
 
 export const jobs = pgTable(
   'jobs',
@@ -67,7 +65,7 @@ export const jobs = pgTable(
     /** Set when the user manually hides a job — excluded from default views. */
     hiddenAt: timestamp('hidden_at', { withTimezone: true }),
     /** Plain-text job description as normalised by the scraper. Null when the
-     *  source exposes no description (Remotive, Workday list-endpoint, GitHub,
+     *  source exposes no description (Remotive, Workday list-endpoint,
      *  Playwright). Never fabricated. */
     descriptionText: text('description_text'),
     /** Original HTML description when the scraper received HTML (Greenhouse

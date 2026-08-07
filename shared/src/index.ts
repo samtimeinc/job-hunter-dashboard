@@ -7,7 +7,6 @@ export type JobSource =
   | 'remotive'
   | 'adzuna'
   | 'jsearch'
-  | 'dice'
   | 'hackernews'
   | 'themuse'
   | 'usajobs'
@@ -15,8 +14,7 @@ export type JobSource =
   | 'lever'
   | 'ashby'
   | 'playwright'
-  | 'workday'
-  | 'github';
+  | 'workday';
 
 export type WorkMode = 'remote' | 'hybrid' | 'onsite' | 'unknown';
 

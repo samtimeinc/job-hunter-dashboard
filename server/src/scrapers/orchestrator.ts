@@ -4,7 +4,6 @@ import { getDashboardSettings } from '../db/queries/settings.js';
 import { isTargetCompany, TARGET_COMPANIES, type TargetCompany } from './targets.js';
 import { scrapeAdzuna } from './adzuna.js';
 import { scrapeAshby } from './ashby.js';
-import { scrapeDice } from './dice.js';
 import { scrapeGreenhouse } from './greenhouse.js';
 import { scrapeHackerNews } from './hackernews.js';
 import { scrapeJSearch } from './jsearch.js';
@@ -13,7 +12,6 @@ import { scrapeRemotive } from './remotive.js';
 import { scrapeTheMuse } from './themuse.js';
 import { scrapeUsaJobs } from './usajobs.js';
 import { scrapeWorkday } from './workday.js';
-import { scrapeGitHub } from './github.js';
 import { scrapePlaywright } from './playwright/index.js';
 import { closeBrowser } from './playwright/browser.js';
 import { passesLocationFilter, type ScraperResult } from './types.js';
@@ -36,7 +34,6 @@ export async function runScan(): Promise<ScanResult[]> {
   results.push(await scrapeRemotive(effectiveKeywords));
   results.push(await scrapeAdzuna(effectiveKeywords, effectiveLocations));
   results.push(await scrapeJSearch(effectiveKeywords));
-  results.push(await scrapeDice(effectiveKeywords));
   results.push(await scrapeHackerNews(effectiveKeywords));
   results.push(await scrapeTheMuse(effectiveKeywords));
   results.push(await scrapeUsaJobs(effectiveKeywords));
@@ -70,9 +67,6 @@ export async function runScan(): Promise<ScanResult[]> {
           return scrapeAshby(career.slug, c.name, effectiveKeywords);
         case 'workday':
           return scrapeWorkday(career.host, career.tenant, career.site, c.name, effectiveKeywords);
-        case 'github':
-          // Single-tenant iCIMS board — no slug, always GitHub itself.
-          return scrapeGitHub(c.name, effectiveKeywords);
         // playwright handled separately below.
         case 'playwright':
           throw new Error('unreachable');

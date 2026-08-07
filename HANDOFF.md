@@ -7,7 +7,7 @@
 
 ## 0. TL;DR
 
-- ✅ **Personal job-hunting dashboard** that scrapes **27 direct company sources** (Greenhouse / Ashby / Lever / Workday / GitHub iCIMS / 1 Playwright) + three aggregator APIs for React/Node/TypeScript roles in Seattle-or-Remote.
+- ✅ **Personal job-hunting dashboard** that scrapes **multiple direct company sources** (Greenhouse / Ashby / Lever / Workday / 1 Playwright) + three aggregator APIs for React/Node/TypeScript roles in Seattle-or-Remote.
 - ✅ **Live, working end-to-end**: scraping → Postgres (Neon) → Express API → React/Tailwind dashboard → click-to-apply.
 - ✅ **Auto-runs** via Vercel cron at 08:00 & 20:00 PT. Last working scan covered 416 jobs across 5+ active source types.
 - ⏳ **Four small non-blocking gaps** — listed below in priority order, each with a concrete fix plan.
@@ -66,17 +66,7 @@ Each item spells out **exactly what to change** so the next agent doesn't have t
 2. Change the `fetchJson<GreenhouseBoard>(url)` call to accept an options object: `fetchJson<GreenhouseBoard>(url, { timeoutMs: 25_000 })` — match the existing pattern in `lever.ts:44`.
 3. Run `npm run scan` and watch the Greenhouse log lines to confirm `fetched 0` is gone.
 
-No schema change, no migration. The same treatment could be applied to `workday.ts` / `github.ts` later if either starts showing the symptom, but neither has so far.
-
-### 🔵 P2 — README undercounts companies and omits the iCIMS adapter
-
-The README was updated once but the company count line is stale: current total is **27 direct-scraped + 9 badge-only**, and the **GitHub iCIMS adapter** (`server/src/scrapers/github.ts`, added 2026-08-04) isn't listed. Update the two stale sentences only — don't rewrite the file.
-
-**Specific edits in `README.md`:**
-
-1. Intro paragraph currently reads "direct scrapers for **12 target companies** and three free-aggregator APIs." → change `12` → `27`.
-2. In the Features data-source list, add `GitHub (iCIMS)` alongside the Greenhouse / Ashby / Lever / Workday line.
-3. Add a one-line pointer near the bottom of the Tech Stack section: `> For build-of-record gotchas, see /memories/repo/jobhunt-dashboard.md`.
+No schema change, no migration. The same treatment could be applied to `workday.ts` later if it starts showing the symptom, but it hasn't so far.
 
 ### 🔵 P2 — No tests; one function worth covering
 
@@ -167,7 +157,7 @@ Express app (server/src/app.ts)
   ├── POST /api/scan            → runScan()   (gated by SCAN_SECRET)
   │
   └── runScan() orchestrator:
-        Parallel (api):    Remotive + Adzuna + JSearch + Greenhouse + Ashby + Lever + Workday + GitHub
+        Parallel (api):    Remotive + Adzuna + JSearch + HackerNews + The Muse + USAJOBS + Greenhouse + Ashby + Lever + Workday
         Serial   (browser): Playwright adapters (one shared Chromium)
         ──────────────────
         For each RawJob returned:
@@ -197,7 +187,6 @@ Documented at the top of `server/src/scrapers/targets.ts`. Quick version:
    - `jobs.ashbyhq.com/<slug>` → use `ashby` template
    - `jobs.lever.co/<slug>` → use `lever` template
    - Workday tenant (`<co>.wdN.myworkdayjobs.com`) → use `workday` template (probe `/wday/cxs/<tenant>/<site>/jobs`)
-   - iCIMS tenant with `/api/jobs` JSON feed → use `github` template (today GitHub is the only one)
    - Custom in-house portal → use `playwright` template (requires the adapter slug exists and is verified)
 2. Add an entry to `TARGET_COMPANIES` in `targets.ts` using one of the TEMPLATE_* blocks at the bottom of the file.
 3. `npm run scan` — no build, no migration.
@@ -248,7 +237,6 @@ JSEARCH_RAPIDAPI_KEY
 ## 9. Memory pointers
 
 - **`/memories/repo/jobhunt-dashboard.md`** — exhaustive build-of-record: every gotcha, verified slug, DB constraint, scraper quirk. **Read first** before any scraper or DB work. Highlights relevant to outstanding work:
-  - "GitHub iCIMS adapter" — the JSON endpoint shape, blank-department quirk, `ANY → unknown` mapping rule.
   - "Workday gotchas" — three latent bugs (limit ≤ 20, multi-token inconsistency, locale+site URL shape) and the verified-tenant list.
   - "Location filter" — the 16-case spec for `passesLocationFilter()` (feeds the P2 test work).
 - **`/memories/cicd-ideas-nextjs-firebase-vercel.md`** — CI patterns the user has used before. Use as the starting point for the P3 CI workflow (translate from Next.js/Firebase shape to plain Vite + Express).

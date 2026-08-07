@@ -1,7 +1,7 @@
 # Job Hunt Dashboard
 
 Personal job-hunting dashboard for **React / Node / TypeScript** roles in
-**Seattle** and **Remote**, with direct scrapers for **12 target companies**
+**Seattle** and **Remote**, with direct scrapers for **32 target companies**
 and three free-aggregator APIs.
 
 ---
@@ -14,8 +14,6 @@ and three free-aggregator APIs.
   - **Adzuna** — has salary data (free API key)
   - **JSearch** via RapidAPI — surfaces LinkedIn-sourced roles without
     scraping LinkedIn directly
-  - **Dice** — OAuth2 client-credentials aggregator with strong FAANG
-    coverage (Amazon/Microsoft/Google/Starbucks)
   - **Hacker News "Who is hiring?"** — monthly YC-startup megathread; no
     API key needed; rich with seed-to-Series-B companies that rarely
     appear on commercial aggregators
@@ -193,7 +191,6 @@ Optional (scrapers degrade gracefully when empty):
 
 - `ADZUNA_APP_ID` + `ADZUNA_API_KEY`
 - `JSEARCH_RAPIDAPI_KEY`
-- `DICE_CLIENT_ID` + `DICE_CLIENT_SECRET`
 - `THEMUSE_API_KEY`
 - `USAJOBS_API_KEY`
 
@@ -328,7 +325,6 @@ exposes them; **never fabricated**. Current coverage:
 | Ashby               | ✅ `descriptionPlain`                    | —                         |
 | Remotive            | ❌ (API provides no description field)   | ❌                        |
 | Workday             | ❌ (list endpoint returns no body)       | ❌                        |
-| GitHub (iCIMS)      | ❌ (HTML is noisy boilerplate)           | ❌                        |
 | Playwright adapters | ❌ (not extracted)                       | ❌                        |
 
 ### Optional MCP adapter
