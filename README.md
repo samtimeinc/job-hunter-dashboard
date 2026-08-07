@@ -19,6 +19,10 @@ and three free-aggregator APIs.
   - **Hacker News "Who is hiring?"** — monthly YC-startup megathread; no
     API key needed; rich with seed-to-Series-B companies that rarely
     appear on commercial aggregators
+  - **The Muse** — employer-curated job board with rich company profiles
+    (free API key, email signup)
+  - **USAJOBS** — official federal government SWE roles (cleared/contractor
+    positions, free API key)
   - **Greenhouse**, **Ashby**, **Lever**, **Workday** — direct career-page
     fetchers for target companies
   - **Playwright** — headless-Chromium scraper for in-house portals
@@ -190,6 +194,8 @@ Optional (scrapers degrade gracefully when empty):
 - `ADZUNA_APP_ID` + `ADZUNA_API_KEY`
 - `JSEARCH_RAPIDAPI_KEY`
 - `DICE_CLIENT_ID` + `DICE_CLIENT_SECRET`
+- `THEMUSE_API_KEY`
+- `USAJOBS_API_KEY`
 
 **Never commit `.env`** (it's in `.gitignore`). For Vercel, set
 `DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`),

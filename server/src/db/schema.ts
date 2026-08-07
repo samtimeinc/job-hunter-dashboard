@@ -29,6 +29,8 @@ export type JobSource =
   | 'jsearch'
   | 'dice'
   | 'hackernews'
+  | 'themuse'
+  | 'usajobs'
   | 'greenhouse'
   | 'lever'
   | 'ashby'

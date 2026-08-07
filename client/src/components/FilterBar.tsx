@@ -22,6 +22,8 @@ const SOURCE_OPTIONS: { value: JobSource; label: string }[] = [
   { value: 'jsearch', label: 'JSearch' },
   { value: 'dice', label: 'Dice' },
   { value: 'hackernews', label: 'HN Hiring' },
+  { value: 'themuse', label: 'The Muse' },
+  { value: 'usajobs', label: 'USAJOBS' },
   { value: 'greenhouse', label: 'Greenhouse' },
   { value: 'lever', label: 'Lever' },
   { value: 'ashby', label: 'Ashby' },

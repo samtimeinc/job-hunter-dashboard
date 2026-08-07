@@ -10,6 +10,8 @@ import { scrapeHackerNews } from './hackernews.js';
 import { scrapeJSearch } from './jsearch.js';
 import { scrapeLever } from './lever.js';
 import { scrapeRemotive } from './remotive.js';
+import { scrapeTheMuse } from './themuse.js';
+import { scrapeUsaJobs } from './usajobs.js';
 import { scrapeWorkday } from './workday.js';
 import { scrapeGitHub } from './github.js';
 import { scrapePlaywright } from './playwright/index.js';
@@ -36,6 +38,8 @@ export async function runScan(): Promise<ScanResult[]> {
   results.push(await scrapeJSearch(effectiveKeywords));
   results.push(await scrapeDice(effectiveKeywords));
   results.push(await scrapeHackerNews(effectiveKeywords));
+  results.push(await scrapeTheMuse(effectiveKeywords));
+  results.push(await scrapeUsaJobs(effectiveKeywords));
 
   // --------- Direct career-page fetchers ---------
   // Split into two groups: API-based scrapers run in parallel (fast), while

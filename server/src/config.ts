@@ -41,5 +41,11 @@ export const config = {
      *  from the Dice developer portal (developer.dice.com). */
     diceClientId: process.env.DICE_CLIENT_ID ?? '',
     diceClientSecret: process.env.DICE_CLIENT_SECRET ?? '',
+    /** The Muse public API v2 — free tier, email registration at themuse.com.
+     *  Docs: https://www.themuse.com/developers/api/v2 */
+    themuseApiKey: process.env.THEMUSE_API_KEY ?? '',
+    /** USAJOBS official federal job search — free tier, email signup at
+     *  developer.usajobs.gov. Docs: https://developer.usajobs.gov/API-Reference */
+    usajobsApiKey: process.env.USAJOBS_API_KEY ?? '',
   },
 } as const;
