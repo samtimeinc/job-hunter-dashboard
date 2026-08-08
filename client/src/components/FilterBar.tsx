@@ -19,7 +19,7 @@ interface Props {
 const SOURCE_OPTIONS: { value: JobSource; label: string }[] = [
   { value: 'remotive', label: 'Remotive' },
   { value: 'adzuna', label: 'Adzuna' },
-  { value: 'jsearch', label: 'JSearch' },
+  { value: 'active-jobs-db', label: 'Active Jobs DB' },
   { value: 'hackernews', label: 'HN Hiring' },
   { value: 'themuse', label: 'The Muse' },
   { value: 'usajobs', label: 'USAJOBS' },

@@ -55,7 +55,7 @@ const JOB_SCHEMA = {
       enum: [
         'remotive',
         'adzuna',
-        'jsearch',
+        'active-jobs-db',
         'greenhouse',
         'lever',
         'ashby',

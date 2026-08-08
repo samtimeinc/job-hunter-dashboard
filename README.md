@@ -12,8 +12,12 @@ and three free-aggregator APIs.
   ToS-violating scraping of LinkedIn/Indeed.
   - **Remotive** — remote-only, no key required
   - **Adzuna** — has salary data (free API key)
-  - **JSearch** via RapidAPI — surfaces LinkedIn-sourced roles without
-    scraping LinkedIn directly
+  - **Active Jobs DB** via RapidAPI (Fantastic.Jobs) — hourly-refreshed
+    index of jobs from 200k+ company career pages, 55+ ATS platforms
+    (Greenhouse/Lever/Workday/iCIMS/…), plus LinkedIn/Wellfound/YC.
+    AI-enriched with salary, work-arrangement, and seniority. Replaces
+    JSearch, which silently returned empty results when its upstream
+    scraper (Google for Jobs) hiccupped.
   - **Hacker News "Who is hiring?"** — monthly YC-startup megathread; no
     API key needed; rich with seed-to-Series-B companies that rarely
     appear on commercial aggregators
@@ -136,7 +140,7 @@ recipe plus TEMPLATE_* blocks at the bottom for each ATS type.
 | Deprioritised | Slack (absorbed into Salesforce), Redfin (acquired by Rocket)               |
 
 **Badge-only** entries get the ★ Watchlist chip in the UI when an aggregator
-(Adzuna / JSearch / Remotive) returns a role whose company name matches — no
+(Adzuna / Active Jobs DB / Remotive) returns a role whose company name matches — no
 direct scrape, but they're not zero-coverage.
 
 ---
@@ -190,7 +194,7 @@ See [`.env.example`](.env.example) for the full list. Minimum to boot:
 Optional (scrapers degrade gracefully when empty):
 
 - `ADZUNA_APP_ID` + `ADZUNA_API_KEY`
-- `JSEARCH_RAPIDAPI_KEY`
+- `RAPIDAPI_KEY` (shared across all RapidAPI providers — subscribe to Active Jobs DB on the marketplace)
 - `THEMUSE_API_KEY`
 - `USAJOBS_API_KEY`
 
@@ -320,7 +324,7 @@ exposes them; **never fabricated**. Current coverage:
 | ------------------- | ---------------------------------------- | ------------------------- |
 | Greenhouse          | ✅ cleaned from `content`                | ✅ original HTML          |
 | Adzuna              | ✅ `description` (text)                  | — (text-only source)      |
-| JSearch             | ✅ `job_description`                     | —                         |
+| Active Jobs DB      | ✅ API-delivered `description_text` (plain text) | —                         |
 | Lever               | ✅ `descriptionPlain` (or stripped HTML) | ✅ original `description` |
 | Ashby               | ✅ `descriptionPlain`                    | —                         |
 | Remotive            | ❌ (API provides no description field)   | ❌                        |
@@ -356,8 +360,8 @@ agent search, read, rank, and update tracker status — never submit. The actual
 ## �🧩 Notes & design decisions
 
 - **No LinkedIn/Indeed direct scraping** — those violate ToS and get
-  IP-blocked fast. JSearch via RapidAPI is a sanctioned aggregator that
-  surfaces LinkedIn-sourced posts.
+  IP-blocked fast. Active Jobs DB (Fantastic.Jobs via RapidAPI) is a
+  sanctioned aggregator that indexes LinkedIn-sourced roles hourly.
 - **Salary honesty** — only what's posted is shown; never fabricated.
 - **Single-user** — no auth; a shared `SCAN_SECRET` protects write paths.
 - **Drizzle migrations** — `npm run db:generate` to generate, then commit

@@ -24,7 +24,7 @@
  * └──────────────────────────────────────────────────────────────────────┘
  *
  * Companies without a `career` entry get the ★ Watchlist badge in the UI
- * when an aggregator (Adzuna / JSearch / Remotive) returns a matching role
+ * when an aggregator (Adzuna / Active Jobs DB / Remotive) returns a matching role
  * by name — see `isTargetCompany()` at the bottom.
  */
 
@@ -265,7 +265,7 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // Badge-only (matched against Adzuna / JSearch / Remotive results by name)
+  // Badge-only (matched against Adzuna / Active Jobs DB / Remotive results by name)
   // ═══════════════════════════════════════════════════════════════════════
   // No `career` entry → these companies aren't scraped directly, but any job
   // surfaced by an aggregator whose company-name contains a matchName gets
@@ -283,7 +283,7 @@ export const TARGET_COMPANIES: TargetCompany[] = [
   // Batch added 2026-08-04 (early-career friendly, React/TS/Node/Next stack).
   // Each was probed against Greenhouse / Ashby / Lever / Workday before landing
   // here — none exposed a clean JSON API we can scrape, so they badge-match
-  // against Adzuna / JSearch / Remotive results by company name instead.
+  // against Adzuna / Active Jobs DB / Remotive results by company name instead.
   //   PAYPAL  — careers.pypl.com is a Q4 Inc portal behind a login wall; the
   //             legacy paypal.wd3.myworkdayjobs.com tenant returns HTTP 422 on
   //             every site name (decommissioned). Not publicly scrapable.

@@ -1,12 +1,12 @@
 import type { ScanResult } from '@jobhunt/shared';
-import { upsertJobs } from '../db/queries/jobs.js';
+import { deactivateStaleJobs, upsertJobs } from '../db/queries/jobs.js';
 import { getDashboardSettings } from '../db/queries/settings.js';
 import { isTargetCompany, TARGET_COMPANIES, type TargetCompany } from './targets.js';
 import { scrapeAdzuna } from './adzuna.js';
 import { scrapeAshby } from './ashby.js';
 import { scrapeGreenhouse } from './greenhouse.js';
 import { scrapeHackerNews } from './hackernews.js';
-import { scrapeJSearch } from './jsearch.js';
+import { scrapeActiveJobsDb } from './active-jobs-db.js';
 import { scrapeLever } from './lever.js';
 import { scrapeRemotive } from './remotive.js';
 import { scrapeTheMuse } from './themuse.js';
@@ -24,21 +24,36 @@ export async function runScan(): Promise<ScanResult[]> {
   const startedAt = new Date().toISOString();
   const { keywords, locations } = await getDashboardSettings();
 
+  // First — expire postings older than 60 days so the dashboard doesn't
+  // accumulate stale (likely-closed) roles forever. Idempotent; runs before
+  // every scan (cron + manual). See `deactivateStaleJobs` for the rule.
+  const deactivated = await deactivateStaleJobs(60);
+  if (deactivated > 0) {
+    console.log(`[scan] deactivated ${deactivated} stale job(s) older than 60 days`);
+  }
+
   // Effective keywords: settings override; fall back to the project defaults.
   const effectiveKeywords = keywords.length ? keywords : ['React', 'Node', 'TypeScript'];
   const effectiveLocations = locations.length ? locations : ['Seattle', 'Remote'];
 
   // --- Aggregator API scrapers (run in parallel — each swallows its own
   // errors, so one slow/aborted source can't stall the others). ---
-  const [remotive, adzuna, jsearch, hackernews, themuse, usajobs] = await Promise.all([
+  const [remotive, adzuna, activeJobsDb, hackernews, themuse, usajobs] = await Promise.all([
     scrapeRemotive(effectiveKeywords),
     scrapeAdzuna(effectiveKeywords, effectiveLocations),
-    scrapeJSearch(effectiveKeywords),
+    scrapeActiveJobsDb(effectiveKeywords),
     scrapeHackerNews(effectiveKeywords),
     scrapeTheMuse(effectiveKeywords),
     scrapeUsaJobs(effectiveKeywords),
   ]);
-  const results: ScraperResult[] = [remotive, adzuna, jsearch, hackernews, themuse, usajobs];
+  const results: ScraperResult[] = [
+    remotive,
+    adzuna,
+    activeJobsDb,
+    hackernews,
+    themuse,
+    usajobs,
+  ];
 
   // --------- Direct career-page fetchers ---------
   // Split into two groups: API-based scrapers run in parallel (fast), while

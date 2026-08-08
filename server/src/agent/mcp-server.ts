@@ -36,7 +36,7 @@ const STATUS_ENUM = z.enum(['to_apply', 'applied', 'interviewing']);
 const SOURCE_ENUM = z.enum([
   'remotive',
   'adzuna',
-  'jsearch',
+  'active-jobs-db',
   'greenhouse',
   'lever',
   'ashby',

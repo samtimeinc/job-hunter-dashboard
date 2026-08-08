@@ -6,7 +6,7 @@
 export type JobSource =
   | 'remotive'
   | 'adzuna'
-  | 'jsearch'
+  | 'active-jobs-db'
   | 'hackernews'
   | 'themuse'
   | 'usajobs'

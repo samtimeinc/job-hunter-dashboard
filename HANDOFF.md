@@ -124,14 +124,14 @@ Gotcha: `noUncheckedIndexedAccess` is on in the base tsconfig — array-index lo
 
 ### ⛔ Explicitly NOT to do
 
-- **Do not re-enable the Microsoft / Starbucks / Google Playwright adapters without first reverse-engineering the live DOM.** They're kept with `⚠️ STATUS: ADAPTER NOT REGISTERED` banners; their selectors were never verified. Reactivation steps are spelled out in the file headers and the repo memory. (Google's DOM was deliberately obfuscated, so probably not worth the recurring maintenance.) These three companies still get **badge-matched** against Adzuna / JSearch / Remotive by `matchNames`, so coverage isn't zero.
+- **Do not re-enable the Microsoft / Starbucks / Google Playwright adapters without first reverse-engineering the live DOM.** They're kept with `⚠️ STATUS: ADAPTER NOT REGISTERED` banners; their selectors were never verified. Reactivation steps are spelled out in the file headers and the repo memory. (Google's DOM was deliberately obfuscated, so probably not worth the recurring maintenance.) These three companies still get **badge-matched** against Adzuna / Active Jobs DB / Remotive by `matchNames`, so coverage isn't zero.
 - **Do not write a "deploy to Vercel" Action** — Vercel already handles builds, deploys, and preview URLs. GitHub Actions here should be code-quality only.
 - **Do not hand-edit `db/migrations/`** — per `agents.md`. Schema changes go through `npm run db:push` / `npm run db:generate`.
 
 ### ℹ️ Parked (no action, monitor only)
 
-- **JSearch endpoint staleness**: the scraper uses `/search-v2` on `jsearch.p.rapidapi.com`. If it starts returning 404s, re-probe against `/search` and `jsearch4.p.rapidapi.com` per the notes in `/memories/repo/jobhunt-dashboard.md` ("JSearch via RapidAPI").
-- **Dead Playwright adapters for Microsoft/Starbucks/Google**: documented as badge-only with re-activation steps in `server/src/scrapers/targets.ts`. No coverage loss because they badge-match against Adzuna / JSearch / Remotive.
+- **JSearch REMOVED 2026-08-07** in favor of Active Jobs DB (Fantastic.Jobs). JSearch's real-time upstream scraper (Google for Jobs / LinkedIn) was periodically returning `{"data":{"jobs":[],"cursor":null}}` for every query — empty-data flakiness baked into its architecture. Active Jobs DB is an hourly-refreshed DATABASE instead of a live scrape, ~10× faster and 100% listed uptime. Swap history documented in `/memories/repo/jobhunt-dashboard.md` ("JSearch empty-results flakiness").
+- **Dead Playwright adapters for Microsoft/Starbucks/Google**: documented as badge-only with re-activation steps in `server/src/scrapers/targets.ts`. No coverage loss because they badge-match against Adzuna / Active Jobs DB / Remotive.
 
 ---
 
@@ -157,7 +157,7 @@ Express app (server/src/app.ts)
   ├── POST /api/scan            → runScan()   (gated by SCAN_SECRET)
   │
   └── runScan() orchestrator:
-        Parallel (api):    Remotive + Adzuna + JSearch + HackerNews + The Muse + USAJOBS + Greenhouse + Ashby + Lever + Workday
+        Parallel (api):    Remotive + Adzuna + Active Jobs DB + HackerNews + The Muse + USAJOBS + Greenhouse + Ashby + Lever + Workday
         Serial   (browser): Playwright adapters (one shared Chromium)
         ──────────────────
         For each RawJob returned:
@@ -172,7 +172,7 @@ The GitHub Actions "Trigger /api/cron" step was failing with `curl: (22) ... 504
 Two compounding causes, both fixed:
 
 1. **Chatty DB writes.** The old `upsertJob()` did a `SELECT` + `UPDATE`/`INSERT` per job → ~2 sequential Neon HTTP round-trips × ~400 jobs ≈ 800+ round-trips. Replaced with a batched `upsertJobs()` (`server/src/db/queries/jobs.ts`) that per 100-row chunk does 1 existence probe + 1 insert + 1 `INSERT .. ON CONFLICT DO UPDATE`. `upsertJob()` is kept as a 1-row wrapper for backward compat.
-2. **Sequential aggregators.** Remotive/Adzuna/JSearch/HN/Muse/USAJOBS now run via `Promise.all` in `orchestrator.ts` (safe — each scraper catches its own errors). Workday's inner fetch also got a 15s AbortController timeout so a hung tenant can't stall the scan.
+2. **Sequential aggregators.** Remotive/Adzuna/Active Jobs DB/HN/Muse/USAJOBS now run via `Promise.all` in `orchestrator.ts` (safe — each scraper catches its own errors). Workday's inner fetch also got a 15s AbortController timeout so a hung tenant can't stall the scan.
 
 Verified: full `npm run scan` completes in **~48s** locally (incl. local Playwright browser runs that Vercel skips). `api/cron.ts` now also returns a JSON 500 with the error message instead of a bare 504, so a future failure is diagnosable from the Actions log.
 
@@ -238,7 +238,7 @@ Optional (scripters degrade gracefully when empty):
 
 ```
 ADZUNA_APP_ID / ADZUNA_API_KEY
-JSEARCH_RAPIDAPI_KEY
+RAPIDAPI_KEY  (Active Jobs DB subscription required on the RapidAPI marketplace)
 ```
 
 **Do not commit `.env`** (it's in `.gitignore`). For Vercel, set `DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`), and any aggregator keys you want active in production in the Vercel project settings.

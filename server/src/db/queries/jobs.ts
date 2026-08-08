@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type {
   ApplicationStatus,
   Job,
@@ -216,7 +216,13 @@ function toJobRow(input: UpsertJobInput) {
     salaryMax: input.salaryMax ?? null,
     salaryCurrency: input.salaryCurrency ?? null,
     salaryPeriod: input.salaryPeriod ?? null,
-    postedAt: input.postedAt ?? null,
+    // Guard against `Invalid Date` from any scraper (workday/usajobs/etc.
+    // sometimes return unparseable date strings). Drizzle's timestamp coder
+    // calls toISOString() unconditionally, which throws RangeError on an
+    // Invalid Date and aborts the whole chunk. Coerce to null here.
+    postedAt: input.postedAt && Number.isFinite(input.postedAt.getTime())
+      ? input.postedAt
+      : null,
     tags: input.tags ?? [],
     isTargetCompany: input.isTargetCompany,
     active: true,
@@ -303,6 +309,36 @@ export async function upsertJobs(inputs: UpsertJobInput[]): Promise<{ inserted: 
 export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
   const { inserted } = await upsertJobs([input]);
   return inserted === 1;
+}
+
+/**
+ * Mark jobs whose `posted_at` is older than `maxAgeDays` as inactive. Called
+ * once at the start of each scan so the dashboard doesn't accumulate stale
+ * (likely-closed) postings forever.
+ *
+ * Simple, single-pass rule: anything posted > 60 days becomes `active=false`.
+ * The dashboard's default view already filters `active=true`, so this keeps
+ * the list fresh without deleting history (rows stay queryable via the
+ * agent API's `active=false` filter).
+ *
+ * Idempotent — safe to run repeatedly. Returns the number of rows flipped.
+ */
+export async function deactivateStaleJobs(maxAgeDays = 60): Promise<number> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - maxAgeDays);
+  const result = await db
+    .update(schema.jobs)
+    .set({ active: false })
+    .where(
+      and(
+        eq(schema.jobs.active, true),
+        // Only flip rows with a known postedAt older than the cutoff. Jobs
+        // with null postedAt stay active (we have no basis to expire them).
+        isNotNull(schema.jobs.postedAt),
+        lt(schema.jobs.postedAt, cutoff),
+      ),
+    );
+  return result.rowCount ?? 0;
 }
 
 /** Convert DB row (Date-typed timestamps) to JSON-safe shape that matches

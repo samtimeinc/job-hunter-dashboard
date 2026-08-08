@@ -26,7 +26,7 @@ export const workModeEnum = pgEnum('work_mode', ['remote', 'hybrid', 'onsite', '
 export type JobSource =
   | 'remotive'
   | 'adzuna'
-  | 'jsearch'
+  | 'active-jobs-db'
   | 'hackernews'
   | 'themuse'
   | 'usajobs'

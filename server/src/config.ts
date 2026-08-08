@@ -36,7 +36,13 @@ export const config = {
   keys: {
     adzunaAppId: process.env.ADZUNA_APP_ID ?? '',
     adzunaApiKey: process.env.ADZUNA_API_KEY ?? '',
-    jsearchRapidApiKey: process.env.JSEARCH_RAPIDAPI_KEY ?? '',
+    /** Active Jobs DB by Fantastic.Jobs via RapidAPI — hourly-refreshed
+     *  jobs database drawn from 200k+ career sites / 25+ ATS platforms.
+     *  Docs: https://rapidapi.com/fantastic-jobs-fantastic-jobs-default/api/active-jobs-db
+     *  Endpoint: GET https://active-jobs-db.p.rapidapi.com/active-ats
+     *  NOTE: same RapidAPI key works for every RapidAPI provider — you just
+     *  click "Subscribe" on each API's marketplace page. */
+    activeJobsDbRapidApiKey: process.env.RAPIDAPI_KEY ?? '',
     /** The Muse public API v2 — free tier, email registration at themuse.com.
      *  Docs: https://www.themuse.com/developers/api/v2 */
     themuseApiKey: process.env.THEMUSE_API_KEY ?? '',

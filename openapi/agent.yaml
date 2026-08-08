@@ -54,7 +54,7 @@ schemas:
       externalId: { type: string, description: Source-specific id used for dedup. }
       source:
         type: string
-        enum: [remotive, adzuna, jsearch, greenhouse, lever, ashby, playwright, workday]
+        enum: [remotive, adzuna, active-jobs-db, greenhouse, lever, ashby, playwright, workday]
       company: { type: string }
       companySlug: { type: string, nullable: true }
       title: { type: string }
