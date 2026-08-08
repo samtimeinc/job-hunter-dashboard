@@ -1,14 +1,25 @@
-# Scans all job sources on a schedule by calling the deployed /api/cron endpoint.
+# Scans all job sources on a schedule by running the scan directly inside the
+# Actions runner, then writing to Neon.
 #
-# Why this exists:
-# Vercel's free (Hobby) tier limits cron jobs to once per day, but we want to
-# scan twice daily. GitHub Actions scheduled workflows run for free on public
-# repos and on private repos within the free-minute quota, so we use it as the
-# scheduler and let Vercel handle only the HTTP execution.
+# Why this exists (and why NOT /api/cron):
+#   Vercel's free (Hobby) tier caps Node serverless functions at ~60s
+#   (`maxDuration: 120` in vercel.json is silently clamped) and the gateway
+#   hard-cuts the connection around there. `runScan()` synchronously inside
+#   `api/cron.ts` was fitting under that limit *on average*, but a Neon
+#   cold-start + one slow aggregator fetch pushes it over intermittently →
+#   bare `curl: (22) ... 504` with no response body (the JS try/catch never
+#   runs because the function is killed mid-flight).
+#   GitHub Actions runs on a full Ubuntu VM with no gateway timeout, and
+#   `runScan()` already writes straight to Neon over HTTP (the same path the
+#   local `npm run scan` uses). So we just run it here.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
-#   SCAN_SECRET  — must match the SCAN_SECRET env var set in Vercel.
-#   APP_URL      — your deployed app base URL, e.g. https://your-app.vercel.app
+#   DATABASE_URL  — Neon connection string (same value as Vercel's env var).
+#   ADZUNA_APP_ID, ADZUNA_API_KEY — Adzuna API credentials.
+#   RAPIDAPI_KEY               — Active Jobs DB (and any other RapidAPI provider).
+#   THEMUSE_API_KEY            — The Muse API key.
+#   USAJOBS_API_KEY            — USAJOBS API key.
+#   (SCRAPERS THAT LACK A KEY SKIP CLEANLY — only DATABASE_URL is required.)
 #
 # To trigger a scan immediately without waiting for the schedule, run the
 # workflow manually from the Actions tab (the "Run workflow" button).
@@ -28,28 +39,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Trigger /api/cron
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Skip Playwright Chromium download
+        # The runner doesn't need the browser binary — runScan() skips the
+        # Playwright adapters when SKIP_PLAYWRIGHT=1 (same gate Vercel uses),
+        # and those companies still get badge-matched against the aggregators.
         env:
-          SCAN_SECRET: ${{ secrets.SCAN_SECRET }}
-          APP_URL: ${{ secrets.APP_URL }}
-        run: |
-          if [ -z "$APP_URL" ]; then
-            echo "::error::APP_URL secret is not set. Add it under Settings → Secrets and variables → Actions."
-            exit 1
-          fi
-          if [ -z "$SCAN_SECRET" ]; then
-            echo "::error::SCAN_SECRET secret is not set. Add it under Settings → Secrets and variables → Actions."
-            exit 1
-          fi
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: echo "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=$PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"
 
-          echo "Hitting $APP_URL/api/cron ..."
-          # --fail makes curl exit non-zero on 4xx/5xx so the workflow step fails.
-          # -sS hides progress but still shows errors.
-          curl --fail -sS -X POST \
-            -H "Authorization: Bearer $SCAN_SECRET" \
-            -H "Content-Type: application/json" \
-            "$APP_URL/api/cron" \
-            -o response.json -w "HTTP %{http_code}\n"
-
-          echo "----- response -----"
-          cat response.json
+      - name: Run scan
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SKIP_PLAYWRIGHT: '1'
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          THEMUSE_API_KEY: ${{ secrets.THEMUSE_API_KEY }}
+          USAJOBS_API_KEY: ${{ secrets.USAJOBS_API_KEY }}
+        run: npm run scan

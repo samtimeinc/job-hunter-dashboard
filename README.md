@@ -145,17 +145,33 @@ direct scrape, but they're not zero-coverage.
 
 ---
 
-## 🛰 Cron schedule (Vercel)
+## 🛰 Cron schedule (GitHub Actions)
 
-Vercel crons run in UTC. `8 AM & 8 PM PT` ≈ `15:00 & 03:00 UTC` (PDT).
+The scan runs **twice daily at 08:00 & 20:00 UTC** via
+[`.github/workflows/scan.yml`](.github/workflows/scan.yml), which runs
+`npm run scan` directly on the Actions runner and writes to Neon.
 
-```jsonc
-"crons": [{ "path": "/api/cron", "schedule": "0 15,3 * * *" }]
-```
+Why not Vercel cron / `/api/cron`? Vercel Hobby caps Node serverless at ~60s
+(`maxDuration: 120` in `vercel.json` is silently clamped), and the gateway
+hard-cuts the connection there. A full scan fits *on average* but a Neon
+cold-start + one slow fetch can push it over → bare `504` with no response
+body. GitHub Actions has no such limit.
 
-Vercel injects `Authorization: Bearer <CRON_SECRET>` — set
-`CRON_SECRET = SCAN_SECRET` in Vercel project env so the existing
-`SCAN_SECRET` check authorises the call.
+The in-app **"Refresh now"** button still hits `/api/scan` (Express, same
+`SCAN_SECRET` via `X-Scan-Secret`) for on-demand single runs.
+
+### Required repo secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon connection string (same as Vercel's). **Required.** |
+| `ADZUNA_APP_ID` / `ADZUNA_API_KEY` | Adzuna aggregator. |
+| `RAPIDAPI_KEY` | Active Jobs DB (shared across RapidAPI providers). |
+| `THEMUSE_API_KEY` | The Muse. |
+| `USAJOBS_API_KEY` | USAJOBS. |
+
+Scrapers whose key is missing skip cleanly — only `DATABASE_URL` is required
+for the workflow to run.
 
 ---
 

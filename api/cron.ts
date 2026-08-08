@@ -1,13 +1,22 @@
 import { runScan } from '../server/src/scrapers/orchestrator.js';
 
 /**
- * Scan endpoint invoked by an external scheduler (GitHub Actions) —
- * Vercel Hobby's free tier only allows one cron/day, so scheduling moved to
- * .github/workflows/scan.yml. Invoked twice daily at 08:00 and 20:00 UTC.
+ * Scan endpoint — DEPRECATED as the scheduled entry point.
  *
- * The caller must send `Authorization: Bearer <SCAN_SECRET>`, which is checked
- * against the SCAN_SECRET env var. The in-app "Refresh now" button hits the
- * separate /api/scan route with the same secret via X-Scan-Secret.
+ * Scheduling now lives entirely in `.github/workflows/scan.yml`, which runs
+ * `npm run scan` directly on the Actions runner and writes to Neon. That path
+ * has no gateway timeout. Calling this endpoint worked *on average* but
+ * intermittently returned a bare 504: Vercel Hobby clamps Node serverless
+ * `maxDuration` to ~60s (the 120 in vercel.json is ignored) and the gateway
+ * hard-cuts the connection there, killing the function before its try/catch
+ * can return a diagnostic body.
+ *
+ * This handler is kept for ad-hoc curl/Postman use, but it is no longer on
+ * the scheduled hot path. The in-app "Refresh now" button uses the separate
+ * `/api/scan` Express route (same SCAN_SECRET via X-Scan-Secret), not this one.
+ *
+ * The caller must send `Authorization: Bearer <SCAN_SECRET>`, checked against
+ * the SCAN_SECRET env var.
  */
 export default async function handler(req: { headers: Record<string, string | undefined> }) {
   const secret = req.headers['authorization']?.replace(/^Bearer\s+/i, '');

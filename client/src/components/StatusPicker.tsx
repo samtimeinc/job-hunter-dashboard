@@ -11,7 +11,7 @@ interface Props {
 export function StatusPicker({ value, onChange, disabled }: Props) {
   return (
     <select
-      className="input py-1 text-xs"
+      className="input min-w-[80px] py-1 text-xs"
       value={value ?? ''}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as ApplicationStatus)}
