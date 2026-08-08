@@ -162,8 +162,19 @@ Express app (server/src/app.ts)
         ──────────────────
         For each RawJob returned:
           1. passesLocationFilter(job, locations) ← single source of truth
-          2. upsertJob()  → inserts new or bumps lastSeenAt on existing
+          2. upsertJobs()  → batched insert (INSERT .. ON CONFLICT DO UPDATE)
 ```
+
+### ⚠️ 504 on /api/cron — FIXED 2026-08-07
+
+The GitHub Actions "Trigger /api/cron" step was failing with `curl: (22) ... 504` after ~2m. That's Vercel's Gateway Timeout: `api/cron.ts` runs `runScan()` synchronously with `maxDuration: 120`, and the scan blew past it.
+
+Two compounding causes, both fixed:
+
+1. **Chatty DB writes.** The old `upsertJob()` did a `SELECT` + `UPDATE`/`INSERT` per job → ~2 sequential Neon HTTP round-trips × ~400 jobs ≈ 800+ round-trips. Replaced with a batched `upsertJobs()` (`server/src/db/queries/jobs.ts`) that per 100-row chunk does 1 existence probe + 1 insert + 1 `INSERT .. ON CONFLICT DO UPDATE`. `upsertJob()` is kept as a 1-row wrapper for backward compat.
+2. **Sequential aggregators.** Remotive/Adzuna/JSearch/HN/Muse/USAJOBS now run via `Promise.all` in `orchestrator.ts` (safe — each scraper catches its own errors). Workday's inner fetch also got a 15s AbortController timeout so a hung tenant can't stall the scan.
+
+Verified: full `npm run scan` completes in **~48s** locally (incl. local Playwright browser runs that Vercel skips). `api/cron.ts` now also returns a JSON 500 with the error message instead of a bare 504, so a future failure is diagnosable from the Actions log.
 
 ---
 

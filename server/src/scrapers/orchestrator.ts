@@ -1,5 +1,5 @@
 import type { ScanResult } from '@jobhunt/shared';
-import { upsertJob } from '../db/queries/jobs.js';
+import { upsertJobs } from '../db/queries/jobs.js';
 import { getDashboardSettings } from '../db/queries/settings.js';
 import { isTargetCompany, TARGET_COMPANIES, type TargetCompany } from './targets.js';
 import { scrapeAdzuna } from './adzuna.js';
@@ -14,7 +14,7 @@ import { scrapeUsaJobs } from './usajobs.js';
 import { scrapeWorkday } from './workday.js';
 import { scrapePlaywright } from './playwright/index.js';
 import { closeBrowser } from './playwright/browser.js';
-import { passesLocationFilter, type ScraperResult } from './types.js';
+import { passesLocationFilter, type RawJob, type ScraperResult } from './types.js';
 
 /**
  * Run every scraper in parallel, persist results, and return a summary.
@@ -28,15 +28,17 @@ export async function runScan(): Promise<ScanResult[]> {
   const effectiveKeywords = keywords.length ? keywords : ['React', 'Node', 'TypeScript'];
   const effectiveLocations = locations.length ? locations : ['Seattle', 'Remote'];
 
-  const results: ScraperResult[] = [];
-
-  // --- Aggregator API scrapers (always run) ---
-  results.push(await scrapeRemotive(effectiveKeywords));
-  results.push(await scrapeAdzuna(effectiveKeywords, effectiveLocations));
-  results.push(await scrapeJSearch(effectiveKeywords));
-  results.push(await scrapeHackerNews(effectiveKeywords));
-  results.push(await scrapeTheMuse(effectiveKeywords));
-  results.push(await scrapeUsaJobs(effectiveKeywords));
+  // --- Aggregator API scrapers (run in parallel — each swallows its own
+  // errors, so one slow/aborted source can't stall the others). ---
+  const [remotive, adzuna, jsearch, hackernews, themuse, usajobs] = await Promise.all([
+    scrapeRemotive(effectiveKeywords),
+    scrapeAdzuna(effectiveKeywords, effectiveLocations),
+    scrapeJSearch(effectiveKeywords),
+    scrapeHackerNews(effectiveKeywords),
+    scrapeTheMuse(effectiveKeywords),
+    scrapeUsaJobs(effectiveKeywords),
+  ]);
+  const results: ScraperResult[] = [remotive, adzuna, jsearch, hackernews, themuse, usajobs];
 
   // --------- Direct career-page fetchers ---------
   // Split into two groups: API-based scrapers run in parallel (fast), while
@@ -103,16 +105,34 @@ export async function runScan(): Promise<ScanResult[]> {
   // Apply the global location filter (WA / Seattle / Remote) BEFORE insert
   // so out-of-region roles never leak into the dashboard. Every scraper —
   // aggregators, ATS APIs, and Playwright adapters — funnels through here.
+  // Batched upsert: one DB round-trip per ~100 rows instead of ~2 per job
+  // (this was the main reason /api/cron timed out with a 504 on Vercel).
   const insertedBySource = new Map<string, number>();
   const rejectedByLocation = new Map<string, number>();
   try {
+    const toPersist: { source: string; job: RawJob }[] = [];
     for (const result of results) {
       for (const job of result.jobs) {
         if (!passesLocationFilter(job, effectiveLocations)) {
           rejectedByLocation.set(result.source, (rejectedByLocation.get(result.source) ?? 0) + 1);
           continue;
         }
-        const inserted = await upsertJob({
+        toPersist.push({ source: result.source, job });
+      }
+    }
+
+    // Group by source so each chunk stays within one source's external-id
+    // namespace (the DB unique constraint is on (source, externalId)).
+    const bySource = new Map<string, RawJob[]>();
+    for (const { source, job } of toPersist) {
+      const list = bySource.get(source);
+      if (list) list.push(job);
+      else bySource.set(source, [job]);
+    }
+
+    for (const [source, jobs] of bySource) {
+      const { inserted } = await upsertJobs(
+        jobs.map((job) => ({
           externalId: job.externalId,
           source: job.source,
           company: job.company,
@@ -135,11 +155,9 @@ export async function runScan(): Promise<ScanResult[]> {
           descriptionHtml: job.descriptionHtml ?? null,
           applyUrl: job.applyUrl ?? null,
           companyDomain: job.companyDomain ?? null,
-        });
-        if (inserted) {
-          insertedBySource.set(result.source, (insertedBySource.get(result.source) ?? 0) + 1);
-        }
-      }
+        })),
+      );
+      insertedBySource.set(source, inserted);
     }
   } finally {
     // Always close the headless browser at the end of the scan so it doesn't

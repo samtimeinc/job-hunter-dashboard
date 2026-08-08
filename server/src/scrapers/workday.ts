@@ -51,6 +51,10 @@ export async function scrapeWorkday(
   const PAGE_LIMIT = 20;
   /** Safety cap per keyword so a runaway result set can't stall a scan. */
   const MAX_PAGES = 5; // → up to 100 postings × N keywords per tenant
+  /** Hard ceiling per Workday request so a hung tenant can't stall the scan
+   *  (Workday tenants have historically hung or been flaky — 504'd the whole
+   *  cron because /api/cron runs synchronously within Vercel's maxDuration). */
+  const REQUEST_TIMEOUT_MS = 15_000;
 
   try {
     const seen = new Set<string>();
@@ -60,16 +64,24 @@ export async function scrapeWorkday(
       let offset = 0;
       let batchLength = PAGE_LIMIT; // primes the loop
       for (let page = 0; page < MAX_PAGES && batchLength === PAGE_LIMIT; page++) {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            appliedFacets: {},
-            limit: PAGE_LIMIT,
-            offset,
-            searchText: keyword,
-          }),
-        });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        let res: Response;
+        try {
+          res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              appliedFacets: {},
+              limit: PAGE_LIMIT,
+              offset,
+              searchText: keyword,
+            }),
+          });
+        } finally {
+          clearTimeout(timer);
+        }
         if (!res.ok) {
           throw new Error(`HTTP ${res.status} ${res.statusText}`);
         }

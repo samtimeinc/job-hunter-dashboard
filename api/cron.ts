@@ -17,9 +17,22 @@ export default async function handler(req: { headers: Record<string, string | un
       headers: { 'content-type': 'application/json' },
     });
   }
-  const results = await runScan();
-  return new Response(JSON.stringify({ results }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
+  try {
+    const results = await runScan();
+    return new Response(JSON.stringify({ results }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  } catch (err) {
+    // Surface the failure as a readable JSON body (status 500) so the GitHub
+    // Actions scheduler log shows what broke instead of a bare 504 gateway
+    // timeout. The scan paths are all error-swallowing, so reaching here means
+    // something unexpected (e.g. DB connectivity at boot).
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[cron] scan failed:', err);
+    return new Response(JSON.stringify({ error: 'scan_failed', message }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
 }

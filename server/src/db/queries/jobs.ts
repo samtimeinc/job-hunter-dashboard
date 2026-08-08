@@ -196,44 +196,13 @@ export interface UpsertJobInput {
   companyDomain?: string | null;
 }
 
-/** Idempotent insert used by scanners.
- *  - On conflict (source + externalId): bump lastSeenAt, re-mark active, keep acked status.
- *  - Returns true if this was a NEW row (used for scan stats). */
-export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
-  const existing = await db
-    .select({ id: schema.jobs.id, active: schema.jobs.active })
-    .from(schema.jobs)
-    .where(and(eq(schema.jobs.source, input.source), eq(schema.jobs.externalId, input.externalId)))
-    .limit(1);
+/** How many jobs to write per DB round-trip. Neon HTTP round-trips are the
+ *  dominant cost in a full scan, so we batch aggressively. */
+const UPSERT_CHUNK_SIZE = 100;
 
-  if (existing.length) {
-    await db
-      .update(schema.jobs)
-      .set({
-        lastSeenAt: new Date(),
-        active: true,
-        title: input.title,
-        url: input.url,
-        location: input.location ?? null,
-        workMode: input.workMode,
-        salaryMin: input.salaryMin ?? null,
-        salaryMax: input.salaryMax ?? null,
-        salaryCurrency: input.salaryCurrency ?? null,
-        salaryPeriod: input.salaryPeriod ?? null,
-        postedAt: input.postedAt ?? null,
-        // Refresh detail fields on every scan so corrections from the source
-        // propagate. Sources that don't provide a field write null, which
-        // keeps us honest about "we don't have it".
-        descriptionText: input.descriptionText ?? null,
-        descriptionHtml: input.descriptionHtml ?? null,
-        applyUrl: input.applyUrl ?? null,
-        companyDomain: input.companyDomain ?? null,
-      })
-      .where(eq(schema.jobs.id, existing[0]!.id));
-    return false;
-  }
-
-  await db.insert(schema.jobs).values({
+/** Map a normalised input to the row shape used for insert / on-conflict. */
+function toJobRow(input: UpsertJobInput) {
+  return {
     id: newId(),
     externalId: input.externalId,
     source: input.source,
@@ -255,8 +224,85 @@ export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
     descriptionHtml: input.descriptionHtml ?? null,
     applyUrl: input.applyUrl ?? null,
     companyDomain: input.companyDomain ?? null,
-  });
-  return true;
+  };
+}
+
+/** Idempotent batch insert used by scanners.
+ *
+ *  Collapses the old per-row SELECT + UPDATE/INSERT dance into ~3 round-trips
+ *  per chunk (one existence probe, one INSERT for new rows, one
+ *  INSERT .. ON CONFLICT DO UPDATE for existing rows). That matters on Vercel
+ *  serverless: a full scan used to issue ~2 queries PER JOB (~800+ sequential
+ *  HTTP round-trips to Neon), which blew past the function's maxDuration and
+ *  504'd the /api/cron endpoint.
+ *
+ *  Semantics preserved from the single-row version:
+ *   - On conflict (source + externalId): bump lastSeenAt, re-mark active,
+ *     refresh source fields, keep acked status / hidden state untouched.
+ *   - Returns the number of NEW rows inserted (used for scan stats).
+ */
+export async function upsertJobs(inputs: UpsertJobInput[]): Promise<{ inserted: number }> {
+  let inserted = 0;
+
+  for (let i = 0; i < inputs.length; i += UPSERT_CHUNK_SIZE) {
+    const chunk = inputs.slice(i, i + UPSERT_CHUNK_SIZE);
+    const source = chunk[0]!.source;
+    const externalIds = chunk.map((c) => c.externalId);
+
+    // One probe learns which rows already exist, so we can split the chunk
+    // into pure-inserts and pure-updates without extra round-trips.
+    const existing = await db
+      .select({ externalId: schema.jobs.externalId })
+      .from(schema.jobs)
+      .where(and(eq(schema.jobs.source, source), inArray(schema.jobs.externalId, externalIds)));
+    const existingIds = new Set(existing.map((r) => r.externalId));
+
+    const newRows = chunk.filter((c) => !existingIds.has(c.externalId));
+    const updateRows = chunk.filter((c) => existingIds.has(c.externalId));
+
+    if (newRows.length) {
+      await db.insert(schema.jobs).values(newRows.map(toJobRow));
+      inserted += newRows.length;
+    }
+    if (updateRows.length) {
+      await db
+        .insert(schema.jobs)
+        .values(updateRows.map(toJobRow))
+        .onConflictDoUpdate({
+          target: [schema.jobs.source, schema.jobs.externalId],
+          set: {
+            lastSeenAt: new Date(),
+            active: true,
+            title: sql`excluded.title`,
+            url: sql`excluded.url`,
+            location: sql`excluded.location`,
+            workMode: sql`excluded.work_mode`,
+            salaryMin: sql`excluded.salary_min`,
+            salaryMax: sql`excluded.salary_max`,
+            salaryCurrency: sql`excluded.salary_currency`,
+            salaryPeriod: sql`excluded.salary_period`,
+            postedAt: sql`excluded.posted_at`,
+            tags: sql`excluded.tags`,
+            // Refresh detail fields on every scan so corrections from the
+            // source propagate. Sources that don't provide a field write
+            // null, which keeps us honest about "we don't have it".
+            descriptionText: sql`excluded.description_text`,
+            descriptionHtml: sql`excluded.description_html`,
+            applyUrl: sql`excluded.apply_url`,
+            companyDomain: sql`excluded.company_domain`,
+          },
+        });
+    }
+  }
+
+  return { inserted };
+}
+
+/** Single-row convenience wrapper kept for callers that need one-at-a-time
+ *  upserts. Returns true when the row was newly inserted. */
+export async function upsertJob(input: UpsertJobInput): Promise<boolean> {
+  const { inserted } = await upsertJobs([input]);
+  return inserted === 1;
 }
 
 /** Convert DB row (Date-typed timestamps) to JSON-safe shape that matches
