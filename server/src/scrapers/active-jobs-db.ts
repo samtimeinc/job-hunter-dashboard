@@ -1,6 +1,13 @@
 import type { JobSource, WorkMode } from '@jobhunt/shared';
 import { config } from '../config.js';
-import { detectWorkMode, fetchJson, type RawJob, type ScraperResult } from './types.js';
+import {
+  detectCountry,
+  detectSeniority,
+  detectWorkMode,
+  fetchJson,
+  type RawJob,
+  type ScraperResult,
+} from './types.js';
 
 /**
  * Active Jobs DB by Fantastic.Jobs via RapidAPI — hourly-refreshed index of
@@ -188,13 +195,20 @@ export async function scrapeActiveJobsDb(keywords: string[]): Promise<ScraperRes
         // We request `description_format=text` so the API returns a pre-stripped
         // plain-text body (no HTML to preserve).
         descriptionText: desc,
-        // The canonical `url` already points at the ATS apply/details page,
-        // so there's no separate apply link to record.
-        applyUrl: null,
+        // The canonical `url` is the ATS apply/details page — surface it as
+        // applyUrl so the agent API can show "hasApplyUrl=true" when the source
+        // gave us a real destination (Active Jobs DB always does).
+        applyUrl: r.url ?? null,
         // Prefer the provider's AI-derived root domain (~100% coverage per
         // the sample dataset) over organisation_url which is empty for ~80%
         // of ATS-sourced rows.
         companyDomain: r.domain_derived ?? null,
+        // Provider row id is the canonical requisition id for this source.
+        requisitionId: r.id ?? null,
+        // locations_derived is "City, State, Country" — detectCountry picks
+        // up the trailing country reliably.
+        country: detectCountry(locText),
+        seniority: detectSeniority(r.title),
       };
     });
 

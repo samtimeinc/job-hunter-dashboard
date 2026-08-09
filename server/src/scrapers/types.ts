@@ -1,5 +1,17 @@
 import type { JobSource, WorkMode } from '@jobhunt/shared';
 
+// Import the eligibility helpers for local use (RawJob below references the
+// Seniority type) AND re-export the full set so scrapers can import every
+// helper from './types.js' (matchesAny, detectWorkMode, detectCountry,
+// detectSeniority, computeLocationEligibility).
+import type { Seniority, LocationEligibility } from './eligibility.js';
+export {
+  detectCountry,
+  computeLocationEligibility,
+  detectSeniority,
+} from './eligibility.js';
+export type { Seniority, LocationEligibility } from './eligibility.js';
+
 /** Single normalised posting produced by every scraper. */
 export interface RawJob {
   source: JobSource;
@@ -27,6 +39,24 @@ export interface RawJob {
   descriptionText?: string | null;
   /** Optional: original HTML description (Greenhouse `content`, Adzuna HTML). */
   descriptionHtml?: string | null;
+  /** Optional: normalised ISO-2 country code derived from the location
+   *  string ("US"/"CA"/"IN"/…). Null when no confident signal is present.
+   *  Populated by the scraper when the source exposes a structured country
+   *  (e.g. Active Jobs DB locations_derived, Workday JSON-LD addressCountry),
+   *  otherwise by detectCountry() in the orchestrator. */
+  country?: string | null;
+  /** Optional: source-provided requisition ID — a stable per-position id
+   *  that survives URL rewrites (e.g. Workday's bulletFields[0] = "JR11114",
+   *  Greenhouse job.id, Lever posting.id). Used to build the canonical
+   *  duplicate-group key (separate from `externalId`, which is the URL
+   *  slug used for DB dedup). */
+  requisitionId?: string | null;
+  /** Optional: canonical duplicate-group key. Set by the orchestrator so
+   *  every persisted row has one (see db/queries/dedupe.ts). */
+  duplicateGroupKey?: string | null;
+  /** Optional: heuristic seniority band (intern/entry/mid/senior/staff/
+   *  manager/director). Set by the scraper or filled by the orchestrator. */
+  seniority?: Seniority | null;
 }
 
 export interface ScraperResult {

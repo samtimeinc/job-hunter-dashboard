@@ -1,15 +1,22 @@
-import { and, desc, eq, gte, inArray, isNull, or, sql, lt } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, not, or, sql, lt } from 'drizzle-orm';
 import type {
   AgentJob,
+  AgentJobDataQuality,
   AgentJobFilters,
   AgentJobListResponse,
   ApplicationStatus,
   CompanyScope,
   JobSource,
+  Seniority,
   Visibility,
   WorkMode,
 } from '@jobhunt/shared';
 import { db, schema } from '../client.js';
+import {
+  ELIGIBLE_COUNTRIES,
+  computeLocationEligibility,
+} from '../../scrapers/eligibility.js';
+import { computeDuplicateGroupKey } from './dedupe.js';
 
 const DEFAULT_LIMIT = 50;
 /** Hard cap per request — agents can ask for up to 200, no more. */
@@ -85,6 +92,39 @@ export async function listAgentJobs(filters: AgentJobFilters = {}): Promise<Agen
     // Same semantics as the dashboard: 'to_apply' includes untouched jobs.
     conditions.push(buildStatusCondition(filters.statuses));
   }
+  if (filters.seniorities?.length) {
+    conditions.push(inArray(schema.jobs.seniority, filters.seniorities as Seniority[]));
+  }
+  if (filters.countries?.length) {
+    conditions.push(inArray(schema.jobs.country, filters.countries));
+  }
+  // Eligibility — derived from the `country` column.
+  //   • eligible=true                       ⇒ countries in ELIGIBLE_COUNTRIES only
+  //   • eligible=true + includeUnknownEligibility=true
+  //                                         ⇒ eligible OR country IS NULL
+  //   • eligible=false (rare)               ⇒ jobs whose country is NOT eligible
+  // The default (eligible undefined) leaves the filter off so existing callers
+  // see every row — agent contract is additive.
+  if (filters.eligible === true) {
+    const eligibleCodes = Array.from(ELIGIBLE_COUNTRIES);
+    if (filters.includeUnknownEligibility) {
+      conditions.push(
+        or(inArray(schema.jobs.country, eligibleCodes), isNull(schema.jobs.country))!,
+      );
+    } else {
+      conditions.push(inArray(schema.jobs.country, eligibleCodes));
+    }
+  } else if (filters.eligible === false) {
+    // Anything NOT in the eligible set, excluding nulls so we don't surface
+    // every unknown-eligibility row.
+    const usableCodes = Array.from(ELIGIBLE_COUNTRIES);
+    conditions.push(
+      and(
+        isNotNull(schema.jobs.country),
+        not(inArray(schema.jobs.country, usableCodes)),
+      ),
+    );
+  }
 
   const where = and(...conditions);
   const hasTrackerJoin = Boolean(filters.statuses?.length);
@@ -142,15 +182,58 @@ export async function listAgentJobs(filters: AgentJobFilters = {}): Promise<Agen
   const [pageRows, [totalRow]] = await Promise.all([pageQuery, countQuery]);
 
   const hasNextPage = pageRows.length > requestedLimit;
-  const page = pageRows.slice(0, requestedLimit);
+  const pageRowsSlice = pageRows.slice(0, requestedLimit);
 
-  const jobs = page.map((r) =>
-    serializeAgentJob(r.job, r.tracker ?? null, filters.includeDescription),
-  );
+  // Compute the per-row duplicate-group keys for this page (used both to fold
+  // siblings when collapseDuplicates=true AND to populate the
+  // `dataQuality.possibleDuplicate` flag). We persist `duplicate_group_key`
+  // at insert time so this lookup is a single cheap `WHERE IN (...) GROUP BY`
+  // instead of an O(N) full-table scan per request.
+  const groupKeys = new Map<string, string>(); // jobId → groupKey
+  for (const r of pageRowsSlice) {
+    groupKeys.set(r.job.id, r.job.duplicateGroupKey ?? computeDuplicateGroupKey({
+      company: r.job.company,
+      title: r.job.title,
+      location: r.job.location,
+      country: r.job.country,
+      requisitionId: r.job.requisitionId,
+    }));
+  }
+
+  // One grouped count lookup across the whole jobs table — restricted to the
+  // group keys present on this page. Returns only keys that occur more than
+  // once in the global sibling set (so `possibleDuplicate` reflects ALL known
+  // rows, not just the visible page).
+  const groupOccurrences = new Map<string, number>();
+  if (groupKeys.size > 0) {
+    const keyList = Array.from(new Set(groupKeys.values()));
+    const rows = await db
+      .select({ key: schema.jobs.duplicateGroupKey, count: sql<number>`count(*)::int` })
+      .from(schema.jobs)
+      .where(inArray(schema.jobs.duplicateGroupKey, keyList))
+      .groupBy(schema.jobs.duplicateGroupKey);
+    for (const r of rows) {
+      if (r.key && r.count > 1) groupOccurrences.set(r.key, r.count);
+    }
+  }
+
+  const collapsed =
+    filters.collapseDuplicates && pageRowsSlice.length > 0
+      ? collapseRows(pageRowsSlice, groupKeys)
+      : pageRowsSlice;
+
+  const jobs = collapsed.map((r) => {
+    const groupKey = groupKeys.get(r.job.id) ?? '';
+    const possibleDuplicate = (groupOccurrences.get(groupKey) ?? 0) > 1;
+    return serializeAgentJob(r.job, r.tracker ?? null, filters.includeDescription, {
+      duplicateGroupKey: groupKey,
+      possibleDuplicate,
+    });
+  });
 
   let nextCursor: string | null = null;
-  if (hasNextPage && page.length > 0) {
-    const last = page[page.length - 1]!.job;
+  if (hasNextPage && pageRowsSlice.length > 0) {
+    const last = pageRowsSlice[pageRowsSlice.length - 1]!.job;
     nextCursor = encodeCursor(last.firstSeenAt, last.id);
   }
 
@@ -159,6 +242,24 @@ export async function listAgentJobs(filters: AgentJobFilters = {}): Promise<Agen
     total: Number(totalRow?.count ?? 0),
     nextCursor,
   };
+}
+
+/** Collapse rows sharing a duplicate-group key to a single representative
+ *  (the most recently seen per group). Preserves the row order from the page
+ *  query so the existing ordering stays stable in the response. */
+function collapseRows(
+  rows: { job: typeof schema.jobs.$inferSelect; tracker: typeof schema.applicationTrackers.$inferSelect | null }[],
+  groupKeys: Map<string, string>,
+): { job: typeof schema.jobs.$inferSelect; tracker: typeof schema.applicationTrackers.$inferSelect | null }[] {
+  const seen = new Set<string>();
+  const out: typeof rows = [];
+  for (const r of rows) {
+    const key = groupKeys.get(r.job.id) ?? r.job.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
 }
 
 /** Build the SQL condition for the `statuses` filter. 'to_apply' is treated as
@@ -256,7 +357,17 @@ export async function getAgentJob(
     .where(eq(schema.jobs.id, jobId))
     .limit(1);
   if (!row) return null;
-  return serializeAgentJob(row.job, row.tracker ?? null, opts.includeDescription ?? true);
+  return serializeAgentJob(row.job, row.tracker ?? null, opts.includeDescription ?? true, {
+    duplicateGroupKey: row.job.duplicateGroupKey ?? '',
+    possibleDuplicate: false, // getAgentJob doesn't run the group-occurrence lookup
+  });
+}
+
+/** Per-job extra metadata computed at query time. Used by serializeAgentJob
+ *  so the single-item and list endpoints share the same code path. */
+interface AgentJobExtras {
+  duplicateGroupKey: string;
+  possibleDuplicate: boolean;
 }
 
 /** Serialise a DB row to the AgentJob shape. Description fields are stripped
@@ -267,7 +378,19 @@ function serializeAgentJob(
   row: typeof schema.jobs.$inferSelect,
   tracker: typeof schema.applicationTrackers.$inferSelect | null,
   includeDescription?: boolean,
+  extras?: AgentJobExtras,
 ): AgentJob {
+  const duplicateGroupKey = extras?.duplicateGroupKey ?? row.duplicateGroupKey ?? '';
+  const possibleDuplicate = extras?.possibleDuplicate ?? false;
+  const country = row.country ?? null;
+  const dataQuality: AgentJobDataQuality = {
+    hasDescription: Boolean(row.descriptionText && row.descriptionText.trim().length > 0),
+    hasApplyUrl: Boolean((row.applyUrl ?? '').trim().length > 0 || (row.url ?? '').trim().length > 0),
+    hasPostedAt: row.postedAt != null,
+    locationEligibility: computeLocationEligibility(country, row.location, row.workMode),
+    country,
+    possibleDuplicate,
+  };
   return {
     id: row.id,
     externalId: row.externalId,
@@ -295,6 +418,11 @@ function serializeAgentJob(
     descriptionHtml: includeDescription ? (row.descriptionHtml ?? null) : null,
     applyUrl: row.applyUrl ?? null,
     companyDomain: row.companyDomain ?? null,
+    country,
+    requisitionId: row.requisitionId ?? null,
+    seniority: row.seniority ?? null,
+    duplicateGroupKey,
+    dataQuality,
     tracker: tracker
       ? {
           id: tracker.id,
@@ -326,6 +454,11 @@ export function parseAgentFilters(query: Record<string, unknown>): AgentJobFilte
     page: parseNumber(query.page),
     cursor: typeof query.cursor === 'string' ? query.cursor : undefined,
     includeDescription: parseBool(query.includeDescription) ?? false,
+    eligible: parseBool(query.eligible),
+    includeUnknownEligibility: parseBool(query.includeUnknownEligibility),
+    countries: parseList(query.countries)?.map((c) => c.toUpperCase()),
+    seniorities: parseList(query.seniorities) as Seniority[] | undefined,
+    collapseDuplicates: parseBool(query.collapseDuplicates),
   };
 }
 

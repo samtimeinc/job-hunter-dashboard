@@ -1,6 +1,12 @@
 import type { JobSource } from '@jobhunt/shared';
 import { config } from '../config.js';
-import { detectWorkMode, fetchJson, type RawJob, type ScraperResult } from './types.js';
+import {
+  detectSeniority,
+  detectWorkMode,
+  fetchJson,
+  type RawJob,
+  type ScraperResult,
+} from './types.js';
 
 /**
  * USAJOBS — official US federal government job board.
@@ -102,6 +108,12 @@ export async function scrapeUsaJobs(keywords: string[]): Promise<ScraperResult> 
         tags: categories.slice(0, 12),
         descriptionText: detailText || null,
         descriptionHtml: detailHtml || null,
+        applyUrl: desc.PositionURI ?? null,
+        requisitionId: id,
+        // USAJOBS is queried without a country filter, but every fed posting
+        // is intrinsically a US position; country is always 'US'.
+        country: 'US',
+        seniority: detectSeniority(desc.PositionTitle),
       });
     }
 

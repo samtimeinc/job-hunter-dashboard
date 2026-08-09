@@ -49,6 +49,8 @@ schemas:
       - active
       - tags
       - isTargetCompany
+      - duplicateGroupKey
+      - dataQuality
     properties:
       id: { type: string, format: uuid, description: Internal job id (stable). }
       externalId: { type: string, description: Source-specific id used for dedup. }
@@ -93,6 +95,36 @@ schemas:
         type: string
         nullable: true
         description: Original HTML description when the scraper received HTML (Greenhouse `content`).
+      country:
+        type: string
+        nullable: true
+        description: Normalised ISO-2 country code parsed from the source payload. Null when no confident signal.
+      requisitionId:
+        type: string
+        nullable: true
+        description: Source-provided stable requisition ID (Workday "JR11114", Greenhouse numeric job id...).
+      seniority:
+        type: string
+        nullable: true
+        enum: [intern, entry, mid, senior, staff, manager, director]
+        description: Heuristic seniority band inferred from the title.
+      duplicateGroupKey:
+        type: string
+        description: Canonical hash of (company, title, location, requisition id) — siblings share this key.
+      dataQuality:
+        type: object
+        required: [hasDescription, hasApplyUrl, hasPostedAt, locationEligibility, country, possibleDuplicate]
+        description: Per-record data-quality summary for agent ranking decisions.
+        properties:
+          hasDescription: { type: boolean, description: True when descriptionText is non-empty. }
+          hasApplyUrl: { type: boolean, description: True when applyUrl OR url is non-empty. }
+          hasPostedAt: { type: boolean, description: True when postedAt is non-null. }
+          locationEligibility:
+            type: string
+            enum: [eligible, ineligible, unknown]
+            description: Country-eligibility bucket — eligible (in target markets, default US), ineligible (clearly outside), unknown (ambiguous).
+          country: { type: string, nullable: true, description: Resolved ISO-2 code for debugging eligibility. }
+          possibleDuplicate: { type: boolean, description: True when another job in the DB shares this duplicateGroupKey. }
       tracker:
         oneOf:
           - $ref: '#/components/schemas/ApplicationTracker'
@@ -276,6 +308,35 @@ paths:
           schema: { type: integer, minimum: 1 }
         - name: includeDescription
           in: query
+          required: false
+          schema: { type: boolean }
+        - name: eligible
+          in: query
+          description: >
+            When true, restrict results to jobs whose country is confirmed
+            eligible for the configured markets (default: United States).
+            Combine with `includeUnknownEligibility=true` to also surface
+            review-needed rows. Additive — does not change what's inserted.
+          required: false
+          schema: { type: boolean }
+        - name: includeUnknownEligibility
+          in: query
+          description: Only meaningful with `eligible=true`. Adds jobs whose country is unknown (review-needed).
+          required: false
+          schema: { type: boolean }
+        - name: countries
+          in: query
+          description: Comma-separated ISO-2 country filter.
+          required: false
+          schema: { type: string, example: 'US' }
+        - name: seniorities
+          in: query
+          description: Comma-separated seniority filter (intern,entry,mid,senior,staff,manager,director).
+          required: false
+          schema: { type: string, example: 'senior,staff' }
+        - name: collapseDuplicates
+          in: query
+          description: Fold sibling jobs sharing a duplicateGroupKey to one representative per group.
           required: false
           schema: { type: boolean }
       responses:

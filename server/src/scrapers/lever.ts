@@ -1,5 +1,5 @@
 import type { JobSource, WorkMode } from '@jobhunt/shared';
-import { matchesAny } from './types.js';
+import { detectCountry, matchesAny, detectSeniority } from './types.js';
 import { detectWorkMode, fetchJson, type RawJob, type ScraperResult } from './types.js';
 
 /**
@@ -95,6 +95,9 @@ export async function scrapeLever(
             (p.descriptionPlain?.trim() || null) ?? (stripLeverHtml(p.description) || null),
           descriptionHtml: p.description?.trim() ? p.description.trim() : null,
           applyUrl: p.applyUrl ?? null,
+          requisitionId: p.id ?? null,
+          country: detectCountry(p.categories?.location),
+          seniority: detectSeniority(p.text),
         };
       });
     return { source, jobs };

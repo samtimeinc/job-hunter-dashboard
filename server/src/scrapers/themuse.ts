@@ -1,6 +1,14 @@
 import type { JobSource } from '@jobhunt/shared';
 import { config } from '../config.js';
-import { detectWorkMode, fetchJson, matchesAny, type RawJob, type ScraperResult } from './types.js';
+import {
+  detectCountry,
+  detectSeniority,
+  detectWorkMode,
+  fetchJson,
+  matchesAny,
+  type RawJob,
+  type ScraperResult,
+} from './types.js';
 
 /**
  * The Muse — employer-branding job board with rich company profiles.
@@ -118,6 +126,12 @@ export async function scrapeTheMuse(keywords: string[]): Promise<ScraperResult> 
         ].slice(0, 12),
         descriptionText: descPlain || null,
         descriptionHtml: r.contents ?? null,
+        applyUrl: r.refs?.landing_page ?? url,
+        requisitionId: id,
+        country: detectCountry(locText),
+        // The Muse publishes structured `levels` — prefer those over the
+        // title heuristic when they carry a recognisable seniority band.
+        seniority: detectSeniority(`${title} ${levelNames}`),
       });
     }
 

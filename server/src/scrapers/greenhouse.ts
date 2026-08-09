@@ -1,5 +1,5 @@
 import type { JobSource } from '@jobhunt/shared';
-import { matchesAny } from './types.js';
+import { detectCountry, matchesAny, detectSeniority } from './types.js';
 import { detectWorkMode, fetchJson, type RawJob, type ScraperResult } from './types.js';
 
 /**
@@ -107,6 +107,10 @@ export async function scrapeGreenhouse(
             [],
           descriptionText,
           descriptionHtml,
+          // Greenhouse's per-job id is the canonical ATS requisition id.
+          requisitionId: j.id != null ? String(j.id) : null,
+          country: detectCountry(locationName),
+          seniority: detectSeniority(j.title),
         };
       });
     return { source, jobs };

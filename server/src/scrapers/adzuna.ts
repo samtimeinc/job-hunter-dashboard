@@ -1,6 +1,13 @@
 import type { JobSource } from '@jobhunt/shared';
 import { config } from '../config.js';
-import { detectWorkMode, fetchJson, type RawJob, type ScraperResult } from './types.js';
+import {
+  detectCountry,
+  detectSeniority,
+  detectWorkMode,
+  fetchJson,
+  type RawJob,
+  type ScraperResult,
+} from './types.js';
 
 /**
  * Adzuna — free-tier aggregator with structured salary data.
@@ -237,6 +244,12 @@ export async function scrapeAdzuna(
           // to a search page.
           companyDomain:
             deriveCompanyDomain(r.company?.website_url, r.company?.display_name) ?? undefined,
+          // Adzuna is queried against the US endpoint (`/jobs/us/search`), so
+          // we know the country up front even when the free-text location
+          // doesn't restate it.
+          country: detectCountry(r.location?.display_name) ?? 'US',
+          requisitionId: r.id ?? null,
+          seniority: detectSeniority(r.title),
         });
       }
     }

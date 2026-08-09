@@ -15,6 +15,8 @@ import { scrapeWorkday } from './workday.js';
 import { scrapePlaywright } from './playwright/index.js';
 import { closeBrowser } from './playwright/browser.js';
 import { passesLocationFilter, type RawJob, type ScraperResult } from './types.js';
+import { detectCountry, detectSeniority } from './eligibility.js';
+import { computeDuplicateGroupKey } from '../db/queries/dedupe.js';
 
 /**
  * Run every scraper in parallel, persist results, and return a summary.
@@ -132,6 +134,28 @@ export async function runScan(): Promise<ScanResult[]> {
           rejectedByLocation.set(result.source, (rejectedByLocation.get(result.source) ?? 0) + 1);
           continue;
         }
+        // Normalise country + seniority at the orchestrator chokepoint so
+        // every persisted row has them even when a scraper didn't set them.
+        // The scraper's value (more specific — e.g. Workday's JSON-LD
+        // addressCountry) wins; we only fill in when it's missing.
+        if (!job.country) {
+          job.country = detectCountry(job.location);
+        }
+        if (!job.seniority) {
+          job.seniority = detectSeniority(job.title);
+        }
+        // Stamp the canonical duplicate-group key so it persists at insert
+        // time (avoids a per-request recomputation across the whole DB on
+        // every agent query).
+        if (!job.duplicateGroupKey) {
+          job.duplicateGroupKey = computeDuplicateGroupKey({
+            company: job.company,
+            title: job.title,
+            location: job.location,
+            country: job.country,
+            requisitionId: job.requisitionId,
+          });
+        }
         toPersist.push({ source: result.source, job });
       }
     }
@@ -170,6 +194,10 @@ export async function runScan(): Promise<ScanResult[]> {
           descriptionHtml: job.descriptionHtml ?? null,
           applyUrl: job.applyUrl ?? null,
           companyDomain: job.companyDomain ?? null,
+          country: job.country ?? null,
+          requisitionId: job.requisitionId ?? null,
+          seniority: job.seniority ?? null,
+          duplicateGroupKey: job.duplicateGroupKey ?? null,
         })),
       );
       insertedBySource.set(source, inserted);

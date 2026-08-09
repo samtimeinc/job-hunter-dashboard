@@ -72,6 +72,30 @@ describe('parseAgentFilters', () => {
     expect(parseAgentFilters({ visibility: 'all' }).visibility).toBe('all');
     expect(parseAgentFilters({ visibility: 'something' }).visibility).toBeUndefined();
   });
+
+  it('parses eligible / includeUnknownEligibility booleans', () => {
+    expect(parseAgentFilters({ eligible: 'true' }).eligible).toBe(true);
+    expect(parseAgentFilters({ eligible: '1' }).eligible).toBe(true);
+    expect(parseAgentFilters({ eligible: 'false' }).eligible).toBe(false);
+    expect(parseAgentFilters({ eligible: '?' }).eligible).toBeUndefined();
+    expect(parseAgentFilters({ includeUnknownEligibility: 'true' }).includeUnknownEligibility).toBe(
+      true,
+    );
+    expect(parseAgentFilters({}).eligible).toBeUndefined();
+  });
+
+  it('parses countries as a UPPERCASE comma-separated list', () => {
+    expect(parseAgentFilters({ countries: 'us,ca' }).countries).toEqual(['US', 'CA']);
+    expect(parseAgentFilters({}).countries).toBeUndefined();
+  });
+
+  it('parses seniorities and collapseDuplicates', () => {
+    expect(parseAgentFilters({ seniorities: 'senior,staff' }).seniorities).toEqual([
+      'senior',
+      'staff',
+    ]);
+    expect(parseAgentFilters({ collapseDuplicates: 'true' }).collapseDuplicates).toBe(true);
+  });
 });
 
 /** Build a minimal AgentJob used by the shape tests below — only the fields
@@ -103,6 +127,18 @@ function sampleAgentJob(overrides: Partial<AgentJob> = {}): AgentJob {
     descriptionHtml: null,
     applyUrl: null,
     companyDomain: 'stripe.com',
+    country: 'US',
+    requisitionId: 'gh-42',
+    seniority: 'senior',
+    duplicateGroupKey: 'grp-1',
+    dataQuality: {
+      hasDescription: false,
+      hasApplyUrl: true,
+      hasPostedAt: true,
+      locationEligibility: 'eligible',
+      country: 'US',
+      possibleDuplicate: false,
+    },
     tracker: null,
     ...overrides,
   };

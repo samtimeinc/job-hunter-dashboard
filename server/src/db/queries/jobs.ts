@@ -194,6 +194,18 @@ export interface UpsertJobInput {
   descriptionHtml?: string | null;
   applyUrl?: string | null;
   companyDomain?: string | null;
+  country?: string | null;
+  requisitionId?: string | null;
+  seniority?:
+    | 'intern'
+    | 'entry'
+    | 'mid'
+    | 'senior'
+    | 'staff'
+    | 'manager'
+    | 'director'
+    | null;
+  duplicateGroupKey?: string | null;
 }
 
 /** How many jobs to write per DB round-trip. Neon HTTP round-trips are the
@@ -230,6 +242,10 @@ function toJobRow(input: UpsertJobInput) {
     descriptionHtml: input.descriptionHtml ?? null,
     applyUrl: input.applyUrl ?? null,
     companyDomain: input.companyDomain ?? null,
+    country: input.country ?? null,
+    requisitionId: input.requisitionId ?? null,
+    seniority: input.seniority ?? null,
+    duplicateGroupKey: input.duplicateGroupKey ?? null,
   };
 }
 
@@ -296,6 +312,10 @@ export async function upsertJobs(inputs: UpsertJobInput[]): Promise<{ inserted: 
             descriptionHtml: sql`excluded.description_html`,
             applyUrl: sql`excluded.apply_url`,
             companyDomain: sql`excluded.company_domain`,
+            country: sql`excluded.country`,
+            requisitionId: sql`excluded.requisition_id`,
+            seniority: sql`excluded.seniority`,
+            duplicateGroupKey: sql`excluded.duplicate_group_key`,
           },
         });
     }
@@ -373,6 +393,10 @@ function serializeJob(
     descriptionHtml: row.descriptionHtml ?? null,
     applyUrl: row.applyUrl ?? null,
     companyDomain: row.companyDomain ?? null,
+    country: row.country ?? null,
+    requisitionId: row.requisitionId ?? null,
+    seniority: row.seniority ?? null,
+    duplicateGroupKey: row.duplicateGroupKey ?? null,
     active: row.active,
     tracker: tracker
       ? {

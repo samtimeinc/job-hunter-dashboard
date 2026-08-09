@@ -20,6 +20,21 @@ export type WorkMode = 'remote' | 'hybrid' | 'onsite' | 'unknown';
 
 export type ApplicationStatus = 'to_apply' | 'applied' | 'interviewing';
 
+/** Heuristic seniority band inferred from a job title. Mirrors the server
+ *  `Seniority` type — kept in shared so the dashboard can type-tag filters
+ *  without importing server internals. */
+export type Seniority =
+  | 'intern'
+  | 'entry'
+  | 'mid'
+  | 'senior'
+  | 'staff'
+  | 'manager'
+  | 'director';
+
+/** Eligibility bucket an agent can route on. */
+export type LocationEligibility = 'eligible' | 'ineligible' | 'unknown';
+
 /** Canonical job record as stored in the DB and returned by the API. */
 export interface Job {
   id: string;
@@ -53,6 +68,19 @@ export interface Job {
   applyUrl?: string | null;
   /** Normalised company domain (e.g. "stripe.com"). Null when unknown. */
   companyDomain?: string | null;
+  /** Normalised ISO-2 country code parsed from the location/structured
+   *  source payload ("US"/"CA"/"IN"/…). Null when no confident signal. */
+  country?: string | null;
+  /** Source-provided stable requisition ID (Workday "JR11114", Greenhouse
+   *  numeric job id, …). Null when not exposed by the source. */
+  requisitionId?: string | null;
+  /** Heuristic seniority band inferred from the title at insert time. Null
+   *  when the title gave no usable signal. */
+  seniority?: Seniority | null;
+  /** Canonical duplicate-group key (stable hash of company+title+location+
+   *  requisition id when present). Two rows that share this key are
+   *  candidates for de-duplication display — they are NOT auto-collapsed. */
+  duplicateGroupKey?: string | null;
   active?: boolean;
   /** Application tracker row linked to this job, if any. */
   tracker?: ApplicationTracker | null;
@@ -143,6 +171,36 @@ export interface DashboardSettings {
  *  query — otherwise null to keep payloads small). */
 export interface AgentJob extends Job {
   active: boolean;
+  /** Per-record data-quality summary so an agent can rank the listing
+   *  for actionability without inspecting every nullable field individually.
+   *  Always present on agent responses (low-cost, high-signal). */
+  dataQuality: AgentJobDataQuality;
+  /** Canonical duplicate-group key for sibling records that may describe the
+   *  same position. Same company + normalised title + normalised location
+   *  + stable requisition id (when available) ⇒ shared key. Two jobs with
+   *  the same key are candidates for de-duplication display; they are NOT
+   *  automatically collapsed — the original rows stay addressable. */
+  duplicateGroupKey: string;
+}
+
+/** Data-quality summary attached to every agent job. Pure structural read of
+ *  which key fields are populated + an eligibility bucket. The agent can use
+ *  this to filter "only jobs with descriptions + apply URLs" etc. */
+export interface AgentJobDataQuality {
+  /** True when descriptionText is non-empty. */
+  hasDescription: boolean;
+  /** True when applyUrl OR url is non-empty (applyUrl preferred when set). */
+  hasApplyUrl: boolean;
+  /** True when postedAt is non-null. */
+  hasPostedAt: boolean;
+  /** Eligibility bucket from computeLocationEligibility(). */
+  locationEligibility: LocationEligibility;
+  /** Resolved ISO-2 country code (debug aid for eligibility decisions). */
+  country: string | null;
+  /** True when this job shares a group key with at least one other row in the
+   *  DB. False when this row is the unique occupant of its group. Populated
+   *  at query time by a single per-page `IN (group_key, …)` lookup. */
+  possibleDuplicate: boolean;
 }
 
 /** Response shape for the cursor-paginated agent search endpoint. */
@@ -177,6 +235,26 @@ export interface AgentJobFilters {
   cursor?: string;
   /** When true, include descriptionText/descriptionHtml on each job. */
   includeDescription?: boolean;
+  /** When true, restrict results to jobs whose country is in the eligible
+   *  set with a confident signal (`locationEligibility = 'eligible'`).
+   *  DOES NOT change what was inserted by the dashboard — the dashboard keeps
+   *  using passesLocationFilter for browsing. This is a stricter,
+   *  agent-facing gate so an automated workflow only acts on in-target
+   *  postings. */
+  eligible?: boolean;
+  /** When true, also include roles with eligibility = 'unknown' (i.e. not
+   *  confirmed-out-of-target). Combined with `eligible` this lets an agent
+   *  request "eligible + review-needed" without the ineligible noise. */
+  includeUnknownEligibility?: boolean;
+  /** Filter by ISO-2 country code(s) — e.g. `countries=US`. */
+  countries?: string[];
+  /** Filter by inferred seniority bands. */
+  seniorities?: Seniority[];
+  /** Optional grouping fold: when true, collapse sibling jobs sharing a
+   *  duplicateGroupKey to a single representative row per group (the newest).
+   *  Default false — every row stays addressable. Useful when an agent wants
+   *  a unique-company/title/location view without manual dedup. */
+  collapseDuplicates?: boolean;
 }
 
 /** Returned by the agent tracker endpoint after an upsert. */

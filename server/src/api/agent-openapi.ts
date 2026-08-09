@@ -46,6 +46,8 @@ const JOB_SCHEMA = {
     'active',
     'tags',
     'isTargetCompany',
+    'duplicateGroupKey',
+    'dataQuality',
   ],
   properties: {
     id: { type: 'string', format: 'uuid', description: 'Internal job id (stable).' },
@@ -110,6 +112,72 @@ const JOB_SCHEMA = {
       nullable: true,
       description:
         'Original HTML description when the scraper received HTML (Greenhouse `content`, Adzuna/text-only sources leave this null).',
+    },
+    country: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Normalised ISO-2 country code parsed from the location/structured source payload ("US"/"CA"/"IN"/…). Null when no confident signal.',
+    },
+    requisitionId: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Source-provided stable requisition ID (Workday "JR11114", Greenhouse numeric job id, …). Null when not exposed by the source.',
+    },
+    seniority: {
+      type: 'string',
+      nullable: true,
+      enum: ['intern', 'entry', 'mid', 'senior', 'staff', 'manager', 'director'],
+      description: 'Heuristic seniority band inferred from the title. Null when inconclusive.',
+    },
+    duplicateGroupKey: {
+      type: 'string',
+      description:
+        'Canonical hash of (company, title, location, requisition id). Two jobs sharing this key are candidates for de-duplication display; they are NOT auto-collapsed.',
+    },
+    dataQuality: {
+      type: 'object',
+      required: [
+        'hasDescription',
+        'hasApplyUrl',
+        'hasPostedAt',
+        'locationEligibility',
+        'country',
+        'possibleDuplicate',
+      ],
+      description:
+        'Per-record data-quality summary an agent can rank on without inspecting every nullable field.',
+      properties: {
+        hasDescription: {
+          type: 'boolean',
+          description: 'True when descriptionText is non-empty.',
+        },
+        hasApplyUrl: {
+          type: 'boolean',
+          description: 'True when applyUrl OR url is non-empty.',
+        },
+        hasPostedAt: {
+          type: 'boolean',
+          description: 'True when postedAt is non-null — the source exposed a real posting date.',
+        },
+        locationEligibility: {
+          type: 'string',
+          enum: ['eligible', 'ineligible', 'unknown'],
+          description:
+            "Country-eligibility bucket. 'eligible' = clearly within the target markets (default: United States). 'ineligible' = clearly outside (e.g. Canada-Remote when only US is configured). 'unknown' = ambiguous/remote-without-country — agent should treat as review-needed.",
+        },
+        country: {
+          type: 'string',
+          nullable: true,
+          description: 'Resolved ISO-2 country code, exposed for debugging eligibility decisions.',
+        },
+        possibleDuplicate: {
+          type: 'boolean',
+          description:
+            'True when at least one OTHER job in the DB shares this duplicateGroupKey. Use collapseDuplicates=true to fold siblings to a representative.',
+        },
+      },
     },
     tracker: {
       oneOf: [{ $ref: '#/components/schemas/ApplicationTracker' }, { type: 'null' }],
@@ -235,6 +303,45 @@ const JOB_QUERY_PARAMS = [
     in: 'query',
     description:
       'When true, return descriptionText/descriptionHtml on each job. Defaults to false to keep payloads small.',
+    required: false,
+    schema: { type: 'boolean' },
+  },
+  {
+    name: 'eligible',
+    in: 'query',
+    description:
+      "When true, restrict results to jobs whose country is confirmed eligible (default market: United States). Combine with `includeUnknownEligibility=true` to also surface review-needed rows. Additive over existing filters — does NOT change what's been inserted by the dashboard.",
+    required: false,
+    schema: { type: 'boolean' },
+  },
+  {
+    name: 'includeUnknownEligibility',
+    in: 'query',
+    description:
+      'Only meaningful with `eligible=true`. Adds jobs whose country is unknown (typically remote-without-country) so the agent can review them rather than dropping on the floor.',
+    required: false,
+    schema: { type: 'boolean' },
+  },
+  {
+    name: 'countries',
+    in: 'query',
+    description: 'Comma-separated ISO-2 country filter. Example: `countries=US`.',
+    required: false,
+    schema: { type: 'string', example: 'US,CA' },
+  },
+  {
+    name: 'seniorities',
+    in: 'query',
+    description:
+      'Comma-separated seniority filter. Allowed: intern,entry,mid,senior,staff,manager,director.',
+    required: false,
+    schema: { type: 'string', example: 'senior,staff' },
+  },
+  {
+    name: 'collapseDuplicates',
+    in: 'query',
+    description:
+      'When true, fold sibling jobs sharing a duplicateGroupKey to a single representative per group. Default false — every row stays addressable. Useful when an agent wants a unique company/title/location view.',
     required: false,
     schema: { type: 'boolean' },
   },

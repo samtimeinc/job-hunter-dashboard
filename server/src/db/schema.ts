@@ -7,6 +7,7 @@ import {
   unique,
   primaryKey,
   pgEnum,
+  index,
 } from 'drizzle-orm/pg-core';
 
 export type ApplicationStatus = 'to_apply' | 'applied' | 'interviewing';
@@ -78,9 +79,30 @@ export const jobs = pgTable(
     /** Normalised company domain (e.g. "stripe.com") used to reconstruct
      *  careers links. Null when not derivable from the source payload. */
     companyDomain: text('company_domain'),
+    /** Normalised ISO-2 country code parsed from the location/structured
+     *  source payload ("US"/"CA"/"IN"/…). Null when no confident signal. */
+    country: text('country'),
+    /** Source-provided stable requisition ID (e.g. Workday "JR11114",
+     *  Greenhouse numeric job id). Distinct from `externalId` (the URL slug
+     *  used for DB dedup) — this is the human-visible position id used to
+     *  build the canonical duplicate-group key so positions that change URL
+     *  but keep the requisition id still group together. */
+    requisitionId: text('requisition_id'),
+    /** Heuristic seniority band inferred from title at insert time. */
+    seniority: text('seniority').$type<
+      'intern' | 'entry' | 'mid' | 'senior' | 'staff' | 'manager' | 'director'
+    >(),
+    /** Canonical duplicate-group key (see server/src/db/queries/dedupe.ts).
+     *  Two rows share this key when they may describe the same position
+     *  (same req id, or — when no req id exists — same company + title +
+     *  location). Indexed so the agent API's possibleDuplicate lookup is a
+     *  cheap `WHERE IN (...) GROUP BY` rather than a full scan. */
+    duplicateGroupKey: text('duplicate_group_key'),
   },
   (t) => ({
     uniqExternal: unique('jobs_external_unique').on(t.source, t.externalId),
+    byDuplicateGroupKey: index('jobs_duplicate_group_key_idx').on(t.duplicateGroupKey),
+    byCountry: index('jobs_country_idx').on(t.country),
   }),
 );
 

@@ -1,5 +1,13 @@
 import type { JobSource } from '@jobhunt/shared';
-import { detectWorkMode, fetchJson, matchesAny, type RawJob, type ScraperResult } from './types.js';
+import {
+  detectCountry,
+  detectSeniority,
+  detectWorkMode,
+  fetchJson,
+  matchesAny,
+  type RawJob,
+  type ScraperResult,
+} from './types.js';
 
 /**
  * Hacker News "Ask HN: Who is hiring?" — YC-startup heavy monthly megathread.
@@ -227,6 +235,10 @@ export async function scrapeHackerNews(keywords: string[]): Promise<ScraperResul
         // rendering HTML; preserve raw HTML in descriptionHtml for completeness.
         descriptionText: parsed.descriptionText,
         descriptionHtml: hit.comment_text ?? null,
+        applyUrl: url,
+        requisitionId: commentId,
+        country: detectCountry(parsed.location),
+        seniority: detectSeniority(parsed.title),
       });
     }
 
