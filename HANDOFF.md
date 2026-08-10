@@ -1,16 +1,18 @@
 # HANDOFF — Job Hunt Dashboard
 
 > Final read for the next agent (human or otherwise) picking this up.
-> Last verified working: **2026-08-05**. Read this _before_ touching anything.
+> Last verified working: **2026-08-10**. Read this _before_ touching anything.
 
 ---
 
 ## 0. TL;DR
 
-- ✅ **Personal job-hunting dashboard** that scrapes **multiple direct company sources** (Greenhouse / Ashby / Lever / Workday / 1 Playwright) + three aggregator APIs for React/Node/TypeScript roles in Seattle-or-Remote.
+- ✅ **Personal job-hunting dashboard** scraping **32 direct company sources** (15 Greenhouse · 6 Ashby · 2 Lever · 8 Workday · 1 Playwright) plus **six aggregator APIs** (Remotive, Adzuna, Active Jobs DB, Hacker News, The Muse, USAJOBS) for React/Node/TypeScript roles in Seattle-or-Remote.
 - ✅ **Live, working end-to-end**: scraping → Postgres (Neon) → Express API → React/Tailwind dashboard → click-to-apply.
-- ✅ **Auto-runs** via Vercel cron at 08:00 & 20:00 PT. Last working scan covered 416 jobs across 5+ active source types.
-- ⏳ **Four small non-blocking gaps** — listed below in priority order, each with a concrete fix plan.
+- ✅ **Auto-runs** via **GitHub Actions** at **08:00 & 20:00 UTC** (scheduling moved off Vercel cron to dodge the Hobby-tier ~60s serverless cap — see §4).
+- ✅ **Agent surface** is open: `/api/agent` (key-gated REST) + a local MCP server over stdio.
+- ✅ **Green baseline as of 2026-08-10**: `npm run typecheck` + root `npx tsc -p tsconfig.json --noEmit` + `npm run build` + `npm test -w server` (**214 tests, 18 files**) all pass.
+- ⏳ **Two small non-blocking gaps** — listed in §3 below (code-quality CI workflow + settings UX).
 
 If you only do one thing first: **read `/memories/repo/jobhunt-dashboard.md`** — every gotcha, every verified slug, every workaround is there. Re-reading it before any scraper/DB work is mandatory.
 
@@ -43,12 +45,34 @@ jobhunt-dashboard/
 
 ## 2. What state the code is in right now
 
-- Typecheck clean across all three packages (`shared`, `server`, `client`).
-- Last production build (`npm run build`) succeeds.
-- DB has **416 jobs** across 5+ source types after the location filter prune.
-- **Hide-jobs feature shipped end-to-end**: schema column (`hidden_at`), `hide / unhide` endpoints (`server/src/api/jobs.ts`), `visibility` filter on `listJobs()`, hidden rows excluded from stats. UI gate is the FilterBar `VisibilityToggle`.
-- Settings modal edits keywords + locations at runtime; changes take effect on the next `npm run scan`.
-- Location filter has a one-shot prune script — run it any time settings or the filter rule change.
+Verified **2026-08-10**:
+
+- **Typecheck clean** across all three workspaces (`npm run typecheck`).
+- **Vercel-path typecheck clean** too — `npx tsc -p tsconfig.json --noEmit`
+  (the only check that covers the `api/` serverless entries).
+- **214 tests pass** in `npm test -w server` (18 files). Last production
+  build (`npm run build`) succeeds.
+- DB holds several hundred active jobs across 5+ source types. Postings are
+  **auto-deactivated after 60 days** (`deactivateStaleJobs` — see §11).
+- **Hide-jobs feature** shipped end-to-end: schema column (`hidden_at`),
+  `hide / unhide` endpoints (`server/src/api/jobs.ts`), `visibility` filter on
+  `listJobs()`, hidden rows excluded from stats. UI gate is the FilterBar
+  `VisibilityToggle`.
+- **Agent API** shipped at `/api/agent` (key-gated): search, get-one, tracker
+  updates, OpenAPI doc (served live + checked in at `openapi/agent.yaml`).
+  A local **MCP server** mirrors it over stdio for trusted hosts
+  (`npm run mcp -w server`).
+- **Data-quality enrichment** — `country`, `requisitionId`, `seniority`,
+  `duplicateGroupKey`, and a `dataQuality` block (eligibility/description/
+  duplicate flags) are populated per row; backfilled for existing rows via
+  one-shot scripts under `server/scripts/`.
+- Settings modal edits keywords + locations at runtime; changes take effect on
+  the next `npm run scan`. Location filter has a one-shot prune script.
+
+ℹ️ The next-machine bootstrap is just: `git clone`, `npm install`, copy
+`.env` (or `cp .env.example .env` and fill `DATABASE_URL` + secrets), then
+`npm run dev`. No DB migration step is required unless `db/schema.ts` has
+advanced past what Neon has — check with `npm run db:studio`.
 
 ---
 
@@ -56,34 +80,36 @@ jobhunt-dashboard/
 
 Each item spells out **exactly what to change** so the next agent doesn't have to re-derive it.
 
-### 🟡 P1 — Greenhouse scraper silently aborts on heavy boards
+### ✅ P1 — Greenhouse scraper timeout — DONE
 
-**Status: still open, verified 2026-08-05.** `server/src/scrapers/greenhouse.ts` calls `fetchJson(url)` with no `timeoutMs`, so it inherits the default 10s in `server/src/scrapers/types.ts`. Big Greenhouse boards (Datadog ~300, Stripe ~500) intermittently exceed that and emit `greenhouse: fetched 0, errors: This operation was aborted`. **Ashby is already bumped to 20s and Lever to 25s — Greenhouse is the last hold-out with the default.**
+**Resolved.** `server/src/scrapers/greenhouse.ts` now passes `timeoutMs: 25_000`
+to `fetchJson()` (matching the 20s in `ashby.ts` and 25s in `lever.ts`). Big
+boards (Datadog, Stripe) no longer abort mid-fetch with `This operation was
+aborted`. No schema change was needed. (`workday.ts` still uses the default
+10s but hasn't shown the symptom.)
 
-**Fix (one line):**
+### ✅ P2 — Test coverage — DONE
 
-1. Edit `server/src/scrapers/greenhouse.ts`.
-2. Change the `fetchJson<GreenhouseBoard>(url)` call to accept an options object: `fetchJson<GreenhouseBoard>(url, { timeoutMs: 25_000 })` — match the existing pattern in `lever.ts:44`.
-3. Run `npm run scan` and watch the Greenhouse log lines to confirm `fetched 0` is gone.
+**Resolved.** The repo now has **214 tests across 18 files** under
+`server/src/**/__tests__/`, run via `npm test -w server` (vitest). Coverage
+includes `passesLocationFilter` / `computeLocationEligibility` (36 cases
+spanning the DC trap, Remote wildcard, Seattle aliases, country detection),
+Workday list + JSON-LD detail parsing, dedupe-by-requisition, status
+filters, the MCP server (tool registration + structured typing), and the
+agent-route auth + workflow. No `vitest.config.ts` is needed — Vitest
+auto-discovers `__tests__/**`. The suite is **not** yet wired into CI —
+that's the remaining P3 item.
 
-No schema change, no migration. The same treatment could be applied to `workday.ts` later if it starts showing the symptom, but it hasn't so far.
+### 🟢 P3 — No code-quality CI yet (scheduled-scan CI exists)
 
-### 🔵 P2 — No tests; one function worth covering
-
-Repo has zero tests — no `__tests__/`, no `vitest.config.*`, no `*.test.ts` anywhere. The only function with a thorough enough spec to warrant coverage is `passesLocationFilter()` in `server/src/scrapers/types.ts` (DC trap, Remote wildcard, Seattle-alias regex, null-location rule). The 16-case spec lives as comments in `/memories/repo/jobhunt-dashboard.md` ("Location filter" section).
-
-**How to add:**
-
-1. `npm i -D vitest -w server` (root workspace).
-2. Add `"test": "vitest run"` to `server/package.json` scripts.
-3. Create `server/src/scrapers/__tests__/filter.test.ts` with the 16 documented cases.
-4. Wire it into the P3 CI workflow below.
-
-No `vitest.config.ts` needed at minimum — Vitest auto-discovers `__tests__/**`.
-
-### 🟢 P3 — No CI
-
-`/memories/cicd-ideas-nextjs-firebase-vercel.md` has the user's preferred CI shape for a different stack. The lowest-effort pin for _this_ repo is a `.github/workflows/ci.yml` that gives fast PR feedback (~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns deploys + preview URLs.**
+A scheduled-scan workflow is already live at `.github/workflows/scan.yml`
+(runs `npm run scan` twice daily via GitHub Actions — see §4). There is
+**no PR/push code-quality workflow**, though. The lowest-effort pin for
+_this_ repo is a `.github/workflows/ci.yml` that gives fast PR feedback
+(~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns
+deploys + preview URLs.** `npm ci` in it should set
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` so it doesn't pull the ~300MB
+Chromium the runner won't use (same gate the scan workflow already sets).
 
 **Create `.github/workflows/ci.yml`:**
 
@@ -105,8 +131,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
-      # if you added vitest in P2:
-      # - run: npm test
+      - run: npm test -w server
+      # also reproduce Vercel's typecheck (the workspace typecheck skips api/):
+      - run: npx tsc -p tsconfig.json --noEmit
 ```
 
 ### 🟢 P3 — Settings admin UI uses three plain text inputs
@@ -165,11 +192,19 @@ Express app (server/src/app.ts)
           2. upsertJobs()  → batched insert (INSERT .. ON CONFLICT DO UPDATE)
 ```
 
-### ⚠️ 504 on /api/cron — FIXED 2026-08-07
+### ℹ️ 504 on /api/cron — scheduling moved off Vercel (history)
 
-The GitHub Actions "Trigger /api/cron" step was failing with `curl: (22) ... 504` after ~2m. That's Vercel's Gateway Timeout: `api/cron.ts` runs `runScan()` synchronously with `maxDuration: 120`, and the scan blew past it.
+Scheduling moved OFF Vercel entirely (final fix 2026-08-08; see
+`/memories/repo/jobhunt-dashboard.md` → "504 on /api/cron — recurred").
+`/api/cron` still exists for ad-hoc curls, and `api/cron.ts.maxDuration`
+has been lowered 120 → 60 so any stray call fails fast instead of dangling.
+Scans now run in `.github/workflows/scan.yml` directly on the Actions runner
+(no gateway). The DB + parallelism work below still applies to **every**
+`runScan()` code path (local script, in-app "Refresh now", GitHub Actions),
+so it's kept for context.
 
-Two compounding causes, both fixed:
+Two compounding causes that were addressed while getting `runScan()` fast
+enough to (mostly) fit under the old Vercel budget:
 
 1. **Chatty DB writes.** The old `upsertJob()` did a `SELECT` + `UPDATE`/`INSERT` per job → ~2 sequential Neon HTTP round-trips × ~400 jobs ≈ 800+ round-trips. Replaced with a batched `upsertJobs()` (`server/src/db/queries/jobs.ts`) that per 100-row chunk does 1 existence probe + 1 insert + 1 `INSERT .. ON CONFLICT DO UPDATE`. `upsertJob()` is kept as a 1-row wrapper for backward compat.
 2. **Sequential aggregators.** Remotive/Adzuna/Active Jobs DB/HN/Muse/USAJOBS now run via `Promise.all` in `orchestrator.ts` (safe — each scraper catches its own errors). Workday's inner fetch also got a 15s AbortController timeout so a hung tenant can't stall the scan.
@@ -265,3 +300,37 @@ npm run prune:locations   # remove the now-out-of-region rows
 ```
 
 Both are idempotent. Run prune especially after editing the filter logic in `scrapers/types.ts`.
+
+---
+
+## 11. Operational rules already baked in
+
+These run automatically — know they exist before adding parallel logic:
+
+- **Stale-job deactivation** — `runScan()` starts by calling
+  `deactivateStaleJobs(60)`, which flips `active = false` on any row whose
+  `posted_at < now() - 60 days`. Idempotent; runs before every scan (cron +
+  manual). **Not a deletion** — rows + tracker history stay, reversible with
+  a direct `UPDATE jobs SET active=true WHERE …`. The dashboard default view
+  already filters `active = true`, so deactivated rows simply stop showing.
+- **DB write batching** — `upsertJobs()` in `server/src/db/queries/jobs.ts`
+  does existence-probe + insert + `INSERT .. ON CONFLICT DO UPDATE` per
+  100-job chunk, and keeps `acknowledgedAt` / `hiddenAt` out of the SET
+  clause so user state survives rescans. `toJobRow()` coerces any
+  Invalid-Date `postedAt` from any scraper to `null` (Drizzle otherwise
+  throws `RangeError: Invalid time value` on `toISOString()`).
+- **Playwright gated off serverless** — the orchestrator skips Playwright
+  adapters when `VERCEL` **or** `SKIP_PLAYWIGHT` is set (no writable FS /
+  250MB bundle limit on Vercel; `npm ci` savings on Actions). Amazon etc.
+  only scrape via local `npm run scan`; on Vercel + Actions they fall back
+  to badge-matching against the aggregators, so coverage isn't zero.
+- **Two-tier location model** — `passesLocationFilter()` (dashboard) is
+  permissive (bare "Remote" = wildcard); `computeLocationEligibility()`
+  (agent) is stricter (bare "Remote" → `'unknown'`, since an agent must be
+  confident about eligibility before surfacing a role). Intentional split —
+  the dashboard is for browsing, the agent must be confident.
+- **Configured-scraper degradation** — every aggregator scraper returns a
+  clean `ScraperResult` with `errors[]` when its key is missing or it times
+  out; the orchestrator's `Promise.all` never throws. So a missing
+  `RAPIDAPI_KEY` just means Active Jobs DB contributes 0 jobs, not a failed
+  scan.

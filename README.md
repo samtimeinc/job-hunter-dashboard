@@ -2,7 +2,7 @@
 
 Personal job-hunting dashboard for **React / Node / TypeScript** roles in
 **Seattle** and **Remote**, with direct scrapers for **32 target companies**
-and three free-aggregator APIs.
+and six aggregator sources.
 
 ---
 
@@ -38,7 +38,8 @@ and three free-aggregator APIs.
 - **Filters** — search, work mode, source, posted-window, target-companies-only
 - **Salary honesty** — displayed only when posted by the source, else `N/A`
 - **On-demand + scheduled scans** — manual "Refresh now" button **and**
-  Vercel cron at **08:00 & 20:00 PT** (15:00 / 03:00 UTC)
+  a GitHub Actions schedule at **08:00 & 20:00 UTC** (moved off Vercel cron
+  to dodge the Hobby-tier ~60s serverless cap; see "Cron schedule" below)
 
 ---
 
@@ -110,34 +111,38 @@ jobhunt-dashboard/
 
 ## 🔁 Common commands
 
-| Command                   | Description                                                       |
-| ------------------------- | ----------------------------------------------------------------- |
-| `npm run dev`             | Start Express + Vite together                                     |
-| `npm run dev:server`      | Express only on `:3001`                                           |
-| `npm run dev:client`      | Vite only                                                         |
-| `npm run typecheck`       | Typecheck all three workspaces                                    |
-| `npm run build`           | Emit `server/dist` + `client/dist`                                |
-| `npm run scan`            | One-off scan, prints per-source stats                             |
-| `npm run prune:locations` | Delete DB rows that fail the current location filter (idempotent) |
-| `npm run db:push`         | Apply schema changes to Neon                                      |
-| `npm run db:studio`       | Open Drizzle Studio UI                                            |
+| Command                                    | Description                                                       |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| `npm run dev`                              | Start Express + Vite together                                     |
+| `npm run dev:server`                       | Express only on `:3001`                                           |
+| `npm run dev:client`                       | Vite only                                                         |
+| `npm run typecheck`                        | Typecheck all three workspaces                                    |
+| `npx tsc -p tsconfig.json --noEmit`        | Vercel-path typecheck (covers `api/` — the workspace one doesn't) |
+| `npm test -w server`                       | Run the vitest suite (~214 tests)                                 |
+| `npm run build`                            | Emit `server/dist` + `client/dist`                                |
+| `npm run scan`                             | One-off scan, prints per-source stats                             |
+| `npm run prune:locations`                  | Delete DB rows that fail the current location filter (idempotent) |
+| `npm run db:push`                          | Apply schema changes to Neon                                      |
+| `npm run db:studio`                        | Open Drizzle Studio UI                                            |
 
 ---
 
 ## 🎯 Target companies
 
-Twelve direct-scraped companies + three badge-only entries. Edit
-[`server/src/scrapers/targets.ts`](server/src/scrapers/targets.ts) to add or
-remove. The file's top comment has a step-by-step "HOW TO ADD A COMPANY"
+**32 direct-scraped companies** across five ATS types, plus **9 badge-only**
+entries. Edit [`server/src/scrapers/targets.ts`](server/src/scrapers/targets.ts) to
+add or remove. The file's top comment has a step-by-step "HOW TO ADD A COMPANY"
 recipe plus TEMPLATE_* blocks at the bottom for each ATS type.
 
-| ATS           | Companies                                                                   |
-| ------------- | --------------------------------------------------------------------------- |
-| Greenhouse    | Stripe, Smartsheet, Anthropic, Airtable, Figma, Datadog, Discord, Robinhood |
-| Ashby         | OpenAI, Vercel, Linear, Notion, Scribd                                      |
-| Playwright    | Amazon (verified) · Microsoft / Starbucks / Google (unverified stubs)       |
-| Badge-only    | Microsoft, Starbucks, Google, Plaid (matched against aggregators by name)   |
-| Deprioritised | Slack (absorbed into Salesforce), Redfin (acquired by Rocket)               |
+| ATS           | Count | Companies                                                                                          |
+| ------------- | ----- | -------------------------------------------------------------------------------------------------- |
+| Greenhouse    | 15    | Anthropic, Cloudflare, Airtable, Figma, Discord, Smartsheet, Stripe, Robinhood, Coinbase, Datadog, Roblox, Pinterest, Reddit, Airbnb, Lyft |
+| Ashby         | 6     | OpenAI, Vercel, Linear, Notion, Ramp, Scribd                                                       |
+| Lever         | 2     | Getty Images, Relay                                                                                |
+| Workday       | 8     | Concentrix, Amgen, BigCommerce, Quantiphi, BMO, RELX, MillerKnoll, Prudential                      |
+| Playwright    | 1     | Amazon (verified) · Microsoft / Starbucks / Google (unverified stubs)                              |
+| Badge-only    | 9     | Microsoft, Starbucks, Google, PayPal, Etsy, Adobe, Shopify, Atlassian, Uber                        |
+| Deprioritised | 3     | Plaid, Slack (→ Salesforce), Redfin (→ Rocket)                                                     |
 
 **Badge-only** entries get the ★ Watchlist chip in the UI when an aggregator
 (Adzuna / Active Jobs DB / Remotive) returns a role whose company name matches — no
