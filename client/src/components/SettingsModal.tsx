@@ -29,6 +29,16 @@ export function SettingsModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  const toggleLocation = (loc: string) => {
+    const has = draft.locations.includes(loc);
+    setDraft({
+      ...draft,
+      locations: has
+        ? draft.locations.filter((x) => x !== loc)
+        : [...draft.locations, loc],
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -61,12 +71,19 @@ export function SettingsModal({ open, onClose }: Props) {
         />
 
         <label className="mb-1 block text-sm font-medium text-slate-700">Locations</label>
-        <input
-          className="input mb-6"
-          value={draft.locations.join(', ')}
-          onChange={(e) => setDraft({ ...draft, locations: splitList(e.target.value) })}
-          placeholder="Seattle, Remote"
-        />
+        <div className="mb-6 flex flex-wrap gap-2">
+          {LOCATION_OPTIONS.map((loc) => {
+            const active = draft.locations.includes(loc);
+            return (
+              <PillToggle
+                key={loc}
+                label={loc}
+                active={active}
+                onClick={() => toggleLocation(loc)}
+              />
+            );
+          })}
+        </div>
 
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
@@ -81,9 +98,36 @@ export function SettingsModal({ open, onClose }: Props) {
   );
 }
 
+/** Fixed vocabulary of selectable locations. */
+const LOCATION_OPTIONS = ['Seattle', 'Portland', 'Bay Area', 'Remote'] as const;
+
 function splitList(value: string): string[] {
   return value
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function PillToggle({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`chip cursor-pointer border ${
+        active
+          ? 'border-slate-900 bg-slate-900 text-white'
+          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
