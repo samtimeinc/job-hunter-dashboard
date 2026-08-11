@@ -15,6 +15,11 @@ export function useJobs(filters: JobFilters): UseJobsState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Stable key for `filters` so the callback is recreated only when the
+  // filter *values* change — not on every parent render that creates a new
+  // filter object reference. We intentionally depend on `filtersKey`, not
+  // `filters`, to avoid a refetch loop.
+  const filtersKey = JSON.stringify(filters);
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -26,7 +31,8 @@ export function useJobs(filters: JobFilters): UseJobsState {
     } finally {
       setLoading(false);
     }
-  }, [JSON.stringify(filters)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey]);
 
   useEffect(() => {
     void refresh();

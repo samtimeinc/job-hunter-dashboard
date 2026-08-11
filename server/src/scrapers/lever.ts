@@ -29,7 +29,8 @@ interface LeverPosting {
   description?: string;
 }
 
-interface LeverResponse extends Array<LeverPosting> {}
+/** Lever's Postings API returns a bare JSON array of LeverPosting. */
+type LeverResponse = LeverPosting[];
 
 /** Cheap HTML → text for Lever's `description` HTML field (used only as a
  *  fallback when `descriptionPlain` is absent). */

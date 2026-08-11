@@ -24,13 +24,21 @@
     "db:studio": "npm run studio -w server"
   },
   "devDependencies": {
+    "@eslint/js": "^9.9.0",
     "@types/node": "^20.19.43",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.23.0",
     "drizzle-orm": "^0.32.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.9.0",
     "prettier": "^3.3.0",
     "tsx": "^4.15.7",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.1"
   },
   "engines": {
     "node": ">=20"

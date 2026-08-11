@@ -4,7 +4,7 @@ import type { JobSource, WorkMode } from '@jobhunt/shared';
 // Seniority type) AND re-export the full set so scrapers can import every
 // helper from './types.js' (matchesAny, detectWorkMode, detectCountry,
 // detectSeniority, computeLocationEligibility).
-import type { Seniority, LocationEligibility } from './eligibility.js';
+import type { Seniority } from './eligibility.js';
 export {
   detectCountry,
   computeLocationEligibility,

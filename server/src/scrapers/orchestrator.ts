@@ -31,7 +31,7 @@ export async function runScan(): Promise<ScanResult[]> {
   // every scan (cron + manual). See `deactivateStaleJobs` for the rule.
   const deactivated = await deactivateStaleJobs(60);
   if (deactivated > 0) {
-    console.log(`[scan] deactivated ${deactivated} stale job(s) older than 60 days`);
+    console.info(`[scan] deactivated ${deactivated} stale job(s) older than 60 days`);
   }
 
   // Effective keywords: settings override; fall back to the project defaults.
@@ -104,7 +104,9 @@ export async function runScan(): Promise<ScanResult[]> {
   // exists.
   const skipPlaywright = process.env.SKIP_PLAYWRIGHT === '1' || Boolean(process.env.VERCEL);
   if (skipPlaywright) {
-    for (const c of playwrightTargets) {
+    // One skip-marker per target so the UI shows every company was attempted;
+    // the loop var isn't used in the body, hence the `_` prefix.
+    for (const _target of playwrightTargets) {
       results.push({
         source: 'playwright',
         jobs: [],

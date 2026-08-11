@@ -1,6 +1,5 @@
-import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db, schema } from '../client.js';
-import { hashExternal, newId } from './helpers.js';
 
 /** Settings singleton — target companies, keywords, locations. */
 export async function getDashboardSettings(): Promise<{

@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import '../src/config.js'; // boots env-aware Drizzle client
-import { db, schema } from '../src/db/client.js';
+import { db } from '../src/db/client.js';
 import { sql } from 'drizzle-orm';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

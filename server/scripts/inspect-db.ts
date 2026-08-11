@@ -1,6 +1,6 @@
 import '../src/config.js';
 import { db, schema } from '../src/db/client.js';
-import { sql, count } from 'drizzle-orm';
+import { count } from 'drizzle-orm';
 
 const summary = await db
   .select({ source: schema.jobs.source, n: count() })

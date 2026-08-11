@@ -1,4 +1,3 @@
-import type { Browser } from 'playwright';
 import { matchesAny } from '../types.js';
 import type { RawJob } from '../types.js';
 import type { PlaywrightAdapter } from './types.js';

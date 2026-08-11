@@ -100,41 +100,29 @@ agent-route auth + workflow. No `vitest.config.ts` is needed — Vitest
 auto-discovers `__tests__/**`. The suite is **not** yet wired into CI —
 that's the remaining P3 item.
 
-### 🟢 P3 — No code-quality CI yet (scheduled-scan CI exists)
+### ✅ P3 — No code-quality CI yet (scheduled-scan CI exists)
 
-A scheduled-scan workflow is already live at `.github/workflows/scan.yml`
-(runs `npm run scan` twice daily via GitHub Actions — see §4). There is
-**no PR/push code-quality workflow**, though. The lowest-effort pin for
-_this_ repo is a `.github/workflows/ci.yml` that gives fast PR feedback
-(~30s) before Vercel builds main. **Don't add a deploy step — Vercel owns
-deploys + preview URLs.** `npm ci` in it should set
-`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` so it doesn't pull the ~300MB
-Chromium the runner won't use (same gate the scan workflow already sets).
+**CI workflow shipped 2026-08-10** at `.github/workflows/ci.yml` (PR/push to
+main). Steps: `npm run typecheck` → `npm run lint` → `npm run build` →
+`npm test -w server` → root `npx tsc -p tsconfig.json --noEmit` (the Vercel-
+path typecheck the workspace script skips). `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`
+is set on `npm ci` (same as `scan.yml`) so the runner doesn't pull a 300MB
+Chromium it won't use. **No deploy step** — Vercel owns deploys.
 
-**Create `.github/workflows/ci.yml`:**
+**ESLint shipped 2026-08-10** too (previously the lint script invoked a
+non-installed eslint, which the old CI caught). Flat config at
+`eslint.config.js` (ESLint 9+). Deps: `eslint`, `@eslint/js`,
+`typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks@^5`
+(v4 won't peer-resolve against eslint 9), `eslint-config-prettier`, `globals`
+— all in the root `package.json` devDeps. Baseline is recommended-only plus
+prettier-conflict disarm (LAST block). Carve-outs for `server/scripts/**`
+and `**/__tests__/**` allow `console` / `any` / non-null assertion
+(exploratory code). Run `npm run lint` locally before pushing — CI runs the
+same. See `/memories/repo/jobhunt-dashboard.md` ("ESLint setup") for the
+full rule list.
 
-```yaml
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: 'npm' }
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run build
-      - run: npm test -w server
-      # also reproduce Vercel's typecheck (the workspace typecheck skips api/):
-      - run: npx tsc -p tsconfig.json --noEmit
-```
+A scheduled-scan workflow is also live at `.github/workflows/scan.yml`
+(runs `npm run scan` once daily at 20:00 UTC via GitHub Actions — see §4).
 
 ### 🟢 P3 — Settings admin UI uses three plain text inputs
 
