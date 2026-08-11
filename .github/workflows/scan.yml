@@ -28,10 +28,10 @@ name: Scheduled job scan
 
 on:
   schedule:
-    # Runs at 08:00 and 20:00 UTC every day.
+    # Runs at 20:00 UTC every day.
     # Note: scheduled workflows run on the latest commit on the default branch
     # and may drift by a few minutes during periods of high GitHub load.
-    - cron: '0 8,20 * * *'
+    - cron: '0 20 * * *'
   workflow_dispatch: {} # enables the manual "Run workflow" button
 
 jobs:

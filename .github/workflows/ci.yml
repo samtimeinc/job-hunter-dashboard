@@ -1,0 +1,71 @@
+# Fast PR/push code-quality gate. Runs lint + typecheck + build + tests on
+# every push to main and every PR targeting main, so PRs get feedback in
+# ~30s instead of waiting on Vercel's build.
+#
+# What this is NOT:
+#   - It does NOT deploy. Vercel owns builds, production deploys, and
+#     preview URLs. (See agents.md → "Don't write a deploy to Vercel GH Action".)
+#   - It does NOT run the scan. That's `.github/workflows/scan.yml`.
+#
+# Why the PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD env on `npm ci`:
+#   `server` depends on Playwright, whose postinstall pulls ~300MB of
+#   Chromium the runner never uses (no browser steps here). Skipping it
+#   keeps the install fast and the cache small — same gate `scan.yml` sets.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel a superseded run on the same ref so force-pushes / rapid PR pushes
+# don't queue up duplicate jobs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege — this workflow only reads code and runs tooling.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        # Skip the Playwright Chromium download — nothing in this workflow
+        # launches a browser (see file header).
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: npm ci
+
+      - name: Typecheck (workspaces)
+        # Covers shared / server / client, but NOT the api/ serverless entries.
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (server)
+        run: npm test -w server
+
+      - name: Typecheck (Vercel path)
+        # The workspace `typecheck` script skips the api/ serverless entries.
+        # Reproduce Vercel's own typecheck so regressions there fail here,
+        # not at deploy time. (Per agents.md → "Keep in mind".)
+        run: npx tsc -p tsconfig.json --noEmit
