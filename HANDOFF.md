@@ -36,7 +36,7 @@ jobhunt-dashboard/
 │       ├── prune-locations.ts  npm run prune:locations
 │       └── inspect-db.ts       npm run inspect (unofficial — add to package.json if missing)
 ├── shared/                 Cross-package TS types (no compiled output; included via include path)
-└── vercel.json             Routes /api/*, schedules cron at "0 15,3 * * *"
+└── vercel.json             Routes /api/* (no cron block — scans run from GitHub Actions)
 ```
 
 **Stack**: PG/Neon + Drizzle ORM · Vite + React + TS + Tailwind · Express TS · Vercel deploy + cron. **Single-user** (no auth; `SCAN_SECRET` gates write paths).
@@ -264,7 +264,7 @@ ADZUNA_APP_ID / ADZUNA_API_KEY
 RAPIDAPI_KEY  (Active Jobs DB subscription required on the RapidAPI marketplace)
 ```
 
-**Do not commit `.env`** (it's in `.gitignore`). For Vercel, set `DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`), and any aggregator keys you want active in production in the Vercel project settings.
+**Do not commit `.env`** (it's in `.gitignore`). For Vercel, set `DATABASE_URL`, `SCAN_SECRET`, and any aggregator keys you want active in production in the Vercel project settings. (Scheduled scans run from `.github/workflows/scan.yml` directly against Neon — no `CRON_SECRET` is needed and none is read by the code.)
 
 ---
 

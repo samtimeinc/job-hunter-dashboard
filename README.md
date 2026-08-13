@@ -220,10 +220,11 @@ Optional (scrapers degrade gracefully when empty):
 - `USAJOBS_API_KEY`
 
 **Never commit `.env`** (it's in `.gitignore`). For Vercel, set
-`DATABASE_URL`, `SCAN_SECRET`, `CRON_SECRET` (= `SCAN_SECRET`),
+`DATABASE_URL`, `SCAN_SECRET`,
 `AGENT_API_KEY`, and any aggregator keys in Vercel project settings. **Do not
 define `VITE_AGENT_API_KEY`** — any `VITE_*` var is baked into the client
-bundle.
+bundle. (Scheduled scans run from `.github/workflows/scan.yml` directly against
+Neon — no `CRON_SECRET` is needed.)
 
 ---
 
